@@ -6,10 +6,10 @@ modules = net datum
 o_files = $(patsubst %, build/obj/%.o, $(modules))
 d_files = $(patsubst %, build/dep/%.d, $(modules))
 
-librethinkdb++.a: $(o_files)
+build/librethinkdb++.a: $(o_files)
 	ar rcs $@ $^
 
-librethink++.so: $(o_files)
+build/librethink++.so: $(o_files)
 	$(CXX) $(CXXFLAGS) -shared -o $@ $^
 
 build/obj/%.o: src/%.cc build/inc/protocol_defs.h
