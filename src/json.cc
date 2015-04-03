@@ -26,37 +26,37 @@ size_t utf8_encode(unsigned int code, char* buf) {
         buf[0] = code;
         return 1;
     } else if (!(code & ~0x7FF)) {
-        buf[0] = 0xC0 & (code >> 6);
-        buf[1] = 0x80 & (code & 0x3F);
+        buf[0] = 0xC0 | (code >> 6);
+        buf[1] = 0x80 | (code & 0x3F);
         return 2;
     } else if (!(code & ~0xFFFF)) {
-        buf[0] = 0xE0 & (code >> 12);
-        buf[1] = 0x80 & ((code >> 6) & 0x3F);
-        buf[2] = 0x80 & (code & 0x3F);
+        buf[0] = 0xE0 | (code >> 12);
+        buf[1] = 0x80 | ((code >> 6) & 0x3F);
+        buf[2] = 0x80 | (code & 0x3F);
         return 3;
     } else if (!(code & ~0x1FFFFF)) {
-        buf[0] = 0xF0 & (code >> 18);
-        buf[1] = 0x80 & ((code >> 12) & 0x3F);
-        buf[2] = 0x80 & ((code >> 6) & 0x3F);
-        buf[3] = 0x80 & (code & 0x3F);
+        buf[0] = 0xF0 | (code >> 18);
+        buf[1] = 0x80 | ((code >> 12) & 0x3F);
+        buf[2] = 0x80 | ((code >> 6) & 0x3F);
+        buf[3] = 0x80 | (code & 0x3F);
         return 4;
     } else if (!(code & ~0x3FFFFFF)) {
-        buf[0] = 0xF8 & (code >> 24);
-        buf[1] = 0x80 & ((code >> 18) & 0x3F);
-        buf[2] = 0x80 & ((code >> 12) & 0x3F);
-        buf[3] = 0x80 & ((code >> 6) & 0x3F);
-        buf[4] = 0x80 & (code & 0x3F);
+        buf[0] = 0xF8 | (code >> 24);
+        buf[1] = 0x80 | ((code >> 18) & 0x3F);
+        buf[2] = 0x80 | ((code >> 12) & 0x3F);
+        buf[3] = 0x80 | ((code >> 6) & 0x3F);
+        buf[4] = 0x80 | (code & 0x3F);
         return 5;
     } else if (!(code & ~0x7FFFFFFF)) {
-        buf[0] = 0xFC & (code >> 30);
-        buf[1] = 0x80 & ((code >> 24) & 0x3F);
-        buf[2] = 0x80 & ((code >> 18) & 0x3F);
-        buf[3] = 0x80 & ((code >> 12) & 0x3F);
-        buf[4] = 0x80 & ((code >> 6) & 0x3F);
-        buf[5] = 0x80 & (code & 0x3F);
+        buf[0] = 0xFC | (code >> 30);
+        buf[1] = 0x80 | ((code >> 24) & 0x3F);
+        buf[2] = 0x80 | ((code >> 18) & 0x3F);
+        buf[3] = 0x80 | ((code >> 12) & 0x3F);
+        buf[4] = 0x80 | ((code >> 6) & 0x3F);
+        buf[5] = 0x80 | (code & 0x3F);
         return 6;
     } else {
-        throw Error("Invalid unicode codepoint %d", code);
+        throw Error("Invalid unicode codepoint %ud", code);
     }
 }
 

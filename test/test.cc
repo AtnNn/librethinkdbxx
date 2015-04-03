@@ -36,7 +36,7 @@ int main() {
         test_json("true");
         test_json("false");
         test_json("\"\"");
-        test_json("\"\u1234\"");
+        test_json("\"\\u1234\"");
         test_json("\"\\\"\"");
         test_json("\"foobar\"");
         test_json("[]");
