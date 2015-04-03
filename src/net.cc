@@ -120,6 +120,8 @@ std::string Connection::recv(size_t size) {
 }
 
 void Connection::close() {
+    // TODO
+
     int ret = ::close(sockfd);
     if (ret == -1) {
         throw Error::from_errno("close");
@@ -128,6 +130,18 @@ void Connection::close() {
 
 uint64_t Connection::new_token() {
     return next_token++;
+}
+
+void Connection::close_token(uint64_t) {
+    // TODO
+}
+
+Response Connection::wait_for_response(uint64_t) {
+    // TODO
+}
+
+Token Connection::start_query(std::string) {
+    // TODO
 }
 
 }

@@ -26,7 +26,7 @@ using Object = std::map<std::string, const Datum>;
 
 class Datum {
 public:
-    static Datum nil() { return Datum(); }
+    Datum(Nil) : type(Type::NIL), value() { }
     Datum(bool boolean_) : type(Type::BOOLEAN), value(boolean_) { }
     Datum(double number_) : type(Type::NUMBER), value(number_) { }
     Datum(const std::string& string_) : type(Type::STRING), value(string_) { }
@@ -55,14 +55,18 @@ public:
     template <class R, class F, class ...A>
     R apply(F f, A&& ...args) const {
         switch (type) {
-        case Type::NIL: f(Nil(), std::forward<A>(args)...); break;
-        case Type::BOOLEAN: f(value.boolean, std::forward<A>(args)...); break;
-        case Type::NUMBER: f(value.number, std::forward<A>(args)...); break;
-        case Type::STRING: f(value.string, std::forward<A>(args)...); break;
-        case Type::OBJECT: f(value.object, std::forward<A>(args)...); break;
-        case Type::ARRAY: f(value.array, std::forward<A>(args)...); break;
+        case Type::NIL: return f(Nil(), std::forward<A>(args)...); break;
+        case Type::BOOLEAN: return f(value.boolean, std::forward<A>(args)...); break;
+        case Type::NUMBER: return f(value.number, std::forward<A>(args)...); break;
+        case Type::STRING: return f(value.string, std::forward<A>(args)...); break;
+        case Type::OBJECT: return f(value.object, std::forward<A>(args)...); break;
+        case Type::ARRAY: return f(value.array, std::forward<A>(args)...); break;
         }
     }
+
+    Datum get_field(std::string) &&;
+    double get_double();
+    Array get_array() &&;
 
 private:
     enum class Type {
@@ -100,40 +104,38 @@ private:
         }
         ~datum_value() { }
     } value;
-
-    Datum() : type(Type::NIL), value() { }
 };
 
 
 Datum nil();
-Datum datum(bool boolean);
-Datum datum(double number);
-Datum datum(int number);
-Datum datum(const std::string& string);
-Datum datum(std::string&& string);
+Datum expr(bool boolean);
+Datum expr(double number);
+Datum expr(int number);
+Datum expr(const std::string& string);
+Datum expr(std::string&& string);
 
 template <class T>
-Datum datum(const std::map<std::string, T>& map) {
+Datum expr(const std::map<std::string, T>& map) {
     Object object;
     for (auto it : map) {
-        std::pair<std::string, Datum> pair(it.left, datum(it.right));
+        std::pair<std::string, Datum> pair(it.left, expr(it.right));
         object.insert(pair);
     }
     return Datum(std::move(object));
 }
 
 template <class T>
-Datum datum(std::map<std::string, T>&& map) {
+Datum expr(std::map<std::string, T>&& map) {
     Object object;
     for (auto it : map) {
-        std::pair<std::string, Datum> pair(it.first, datum(std::move(it.second)));
+        std::pair<std::string, Datum> pair(it.first, expr(std::move(it.second)));
         object.insert(pair);
     }
     return Datum(std::move(object));
 }
 
 template <class T>
-Datum datum(const std::vector<T>& vec) {
+Datum expr(const std::vector<T>& vec) {
     Array array;
     for (auto it : vec) {
         array.emplace_back(it);
@@ -142,7 +144,7 @@ Datum datum(const std::vector<T>& vec) {
 }
 
 template <class T>
-Datum datum(std::vector<T>&& vec) {
+Datum expr(std::vector<T>&& vec) {
     Array array;
     for (auto it : vec) {
         array.emplace_back(std::move(it));
@@ -150,7 +152,7 @@ Datum datum(std::vector<T>&& vec) {
     return Datum(std::move(array));
 }
 
-Datum datum(const Datum& datum);
-Datum datum(Datum&& datum);
+Datum expr(const Datum& datum);
+Datum expr(Datum&& datum);
 
 }

@@ -221,7 +221,7 @@ Datum read_number(BufferedInputStream& stream, char first) {
     if (*end != 0) {
         throw Error("Invalid JSON number '%s'", buf);
     }
-    return datum(number);
+    return expr(number);
 }
 
 Datum read_datum(BufferedInputStream& stream) {
@@ -233,13 +233,13 @@ Datum read_datum(BufferedInputStream& stream) {
     case '[':
         return read_array(stream);
     case '"':
-        return datum(read_string(stream));
+        return expr(read_string(stream));
     case 't':
         read_exact(stream, "rue");
-        return datum(true);
+        return expr(true);
     case 'f':
         read_exact(stream, "alse");
-        return datum(false);
+        return expr(false);
     case 'n':
         read_exact(stream, "ull");
         return nil();

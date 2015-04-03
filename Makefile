@@ -1,5 +1,5 @@
-CXX ?= g++
-CXXFLAGS ?= -std=c++11 -g -I'build/inc' -Wall
+CXX = clang++
+CXXFLAGS = -std=c++11 -g -I'build/inc' -Wall
 
 modules = net datum json query
 headers = error stream datum json net query
