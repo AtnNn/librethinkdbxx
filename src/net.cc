@@ -73,10 +73,16 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
     }
 }
 
+size_t Connection::recv_some(char* buf, size_t size) {
+    ssize_t numbytes = ::recv(sockfd, buf, size, 0);
+    if (numbytes == -1) throw Error::from_errno("recv");
+    return numbytes;
+}
+
 void Connection::recv(char* buf, size_t size) {
     while (size) {
-        ssize_t numbytes = ::recv(sockfd, buf, size, 0);
-        if (numbytes == -1) throw Error::from_errno("recv");
+        size_t numbytes = recv_some(buf, size);
+        if (numbytes == 0) throw Error("Lost connection to remote server");
         buf += numbytes;
         size -= numbytes;
     }
@@ -118,6 +124,10 @@ void Connection::close() {
     if (ret == -1) {
         throw Error::from_errno("close");
     }
+}
+
+uint64_t Connection::new_token() {
+    return next_token++;
 }
 
 }

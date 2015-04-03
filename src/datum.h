@@ -3,10 +3,17 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <functional>
+
+#include "protocol_defs.h"
 
 namespace RethinkDB {
 
+using TT = Protocol::Term::TermType;
+
 class Datum;
+
+class Nil { };
 
 class Time;
 class Point;
@@ -29,7 +36,10 @@ public:
     Datum(const Array& array_) : type(Type::ARRAY), value(array_) { }
     Datum(Array&& array_) : type(Type::ARRAY), value(std::move(array_)) { }
 
+    Datum(TT type) : type(Type::NUMBER), value(static_cast<double>(type)) { }
+
     Datum(const Datum& other) : type(other.type), value(other.type, other.value) { }
+    Datum(Datum&& other) : type(other.type), value(other.type, std::move(other.value)) { }
 
     ~Datum(){
         switch(type){
@@ -39,6 +49,18 @@ public:
         case Type::STRING: { using namespace std; value.string.~string(); } break;
         case Type::OBJECT: value.object.~Object(); break;
         case Type::ARRAY: value.array.~Array(); break;
+        }
+    }
+
+    template <class R, class F, class ...A>
+    R apply(F f, A&& ...args) const {
+        switch (type) {
+        case Type::NIL: f(Nil(), std::forward<A>(args)...); break;
+        case Type::BOOLEAN: f(value.boolean, std::forward<A>(args)...); break;
+        case Type::NUMBER: f(value.number, std::forward<A>(args)...); break;
+        case Type::STRING: f(value.string, std::forward<A>(args)...); break;
+        case Type::OBJECT: f(value.object, std::forward<A>(args)...); break;
+        case Type::ARRAY: f(value.array, std::forward<A>(args)...); break;
         }
     }
 
@@ -83,25 +105,12 @@ private:
 };
 
 
-Datum nil() {
-    return Datum::nil();
-}
-
-Datum datum(bool boolean) {
-    return Datum(boolean);
-}
-
-Datum datum(double number) {
-    return Datum(number);
-}
-
-Datum datum(const std::string& string) {
-    return Datum(string);
-}
-
-Datum datum(std::string&& string) {
-    return Datum(string);
-}
+Datum nil();
+Datum datum(bool boolean);
+Datum datum(double number);
+Datum datum(int number);
+Datum datum(const std::string& string);
+Datum datum(std::string&& string);
 
 template <class T>
 Datum datum(const std::map<std::string, T>& map) {
@@ -110,35 +119,38 @@ Datum datum(const std::map<std::string, T>& map) {
         std::pair<std::string, Datum> pair(it.left, datum(it.right));
         object.insert(pair);
     }
-    return datum(std::move(object));
+    return Datum(std::move(object));
 }
 
 template <class T>
 Datum datum(std::map<std::string, T>&& map) {
     Object object;
     for (auto it : map) {
-        std::pair<std::string, Datum> pair(it.left, datum(std::move(it.right)));
+        std::pair<std::string, Datum> pair(it.first, datum(std::move(it.second)));
         object.insert(pair);
     }
-    return datum(std::move(object));
+    return Datum(std::move(object));
 }
 
 template <class T>
 Datum datum(const std::vector<T>& vec) {
     Array array;
     for (auto it : vec) {
-        array.insert(datum(it));
+        array.emplace_back(it);
     }
-    return datum(std::move(array));
+    return Datum(std::move(array));
 }
 
 template <class T>
 Datum datum(std::vector<T>&& vec) {
     Array array;
     for (auto it : vec) {
-        array.insert(datum(std::move(it)));
+        array.emplace_back(std::move(it));
     }
-    return datum(std::move(array));
+    return Datum(std::move(array));
 }
+
+Datum datum(const Datum& datum);
+Datum datum(Datum&& datum);
 
 }
