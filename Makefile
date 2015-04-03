@@ -7,6 +7,10 @@ headers = error stream datum json net query
 o_files = $(patsubst %, build/obj/%.o, $(modules))
 d_files = $(patsubst %, build/dep/%.d, $(modules))
 
+default: build/librethinkdb++.a
+
+all: build/librethinkdb++.a build/librethink++.so build/test build/include/rethinkdb.h
+
 build/librethinkdb++.a: $(o_files)
 	ar rcs $@ $^
 

@@ -18,8 +18,8 @@ Protocol::Response::ResponseType response_type(double t);
 class Response {
 public:
     Response(Datum&& datum) :
-        type(response_type(std::move(datum).get_field("t").get_double())),
-        result(std::move(datum).get_field("r").get_array()) { }
+        type(response_type(std::move(datum).extract_field("t").extract_number())),
+        result(std::move(datum).extract_field("r").extract_array()) { }
     Error as_error();
     Protocol::Response::ResponseType type;
     Array result;

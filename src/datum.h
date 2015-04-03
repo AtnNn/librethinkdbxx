@@ -102,9 +102,21 @@ public:
         }
     }
 
-    Datum get_field(std::string) &&;
-    double get_double();
-    Array get_array() &&;
+    bool is_nil();
+
+    bool* get_boolean();
+    double* get_number();
+    std::string* get_string();
+    Object* get_object();
+    Datum* get_field(std::string);
+    Array* get_array();
+
+    bool extract_boolean();
+    double extract_number();
+    std::string extract_string() &&;
+    Object extract_object() &&;
+    Datum extract_field(std::string) &&;
+    Array extract_array() &&;
 
 private:
     enum class Type {
