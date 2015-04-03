@@ -1,3 +1,5 @@
+#include <signal.h>
+
 #include <cstdio>
 
 #include <rethinkdb.h>
@@ -13,8 +15,21 @@ void test_json(const char* string) {
     puts("");
 }
 
+void test_connect() {
+    R::Connection conn = R::connect();
+    printf("Waiting for result (1 + 2): ");
+    fflush(stdout);
+    write_datum((R::expr(1) + 2).run(conn), out);
+    printf("\nWaiting for result (r.table('test').count()): ");
+    fflush(stdout);
+    write_datum(R::table("test").count().run(conn), out);
+    puts("");
+}
+
 int main() {
+    signal(SIGPIPE, SIG_IGN);
     try {
+        test_connect();
         test_json("null");
         test_json("1.2");
         test_json("1.2e20");

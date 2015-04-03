@@ -22,7 +22,7 @@ class Polygon;
 class Binary;
 
 using Array = std::vector<Datum>;
-using Object = std::map<std::string, const Datum>;
+using Object = std::map<std::string, Datum>;
 
 class Datum {
 public:
@@ -36,20 +36,58 @@ public:
     Datum(const Array& array_) : type(Type::ARRAY), value(array_) { }
     Datum(Array&& array_) : type(Type::ARRAY), value(std::move(array_)) { }
 
-    Datum(TT type) : type(Type::NUMBER), value(static_cast<double>(type)) { }
-
     Datum(const Datum& other) : type(other.type), value(other.type, other.value) { }
     Datum(Datum&& other) : type(other.type), value(other.type, std::move(other.value)) { }
 
-    ~Datum(){
-        switch(type){
-        case Type::NIL: break;
-        case Type::BOOLEAN: break;
-        case Type::NUMBER: break;
-        case Type::STRING: { using namespace std; value.string.~string(); } break;
-        case Type::OBJECT: value.object.~Object(); break;
-        case Type::ARRAY: value.array.~Array(); break;
+    Datum& operator=(const Datum& other) {
+        value.destroy(type);
+        type = other.type;
+        value.set(type, other.value);
+        return *this;
+    }
+
+    Datum& operator=(Datum&& other) {
+        value.destroy(type);
+        type = other.type;
+        value.set(type, std::move(other.value));
+        return *this;
+    }
+
+    Datum(int number_) : Datum(static_cast<double>(number_)) { }
+    Datum(TT type) : Datum(static_cast<double>(type)) { }
+    Datum(const char* string) : Datum(static_cast<std::string>(string)) { }
+
+
+    template <class T>
+    Datum(const std::map<std::string, T>& map) : type(Type::OBJECT), value(Object()) {
+        for (auto it : map) {
+            value.object.emplace(it.left, Datum(it.right));
         }
+    }
+
+    template <class T>
+    Datum(std::map<std::string, T>&& map) : type(Type::OBJECT), value(Object()) {
+        for (auto it : map) {
+            value.object.emplace(it.first, Datum(std::move(it.second)));
+        }
+    }
+
+    template <class T>
+    Datum(const std::vector<T>& vec) : type(Type::ARRAY), value(Array()) {
+        for (auto it : vec) {
+            value.array.emplace_back(it);
+        }
+    }
+
+    template <class T>
+    Datum(std::vector<T>&& vec) : type(Type::ARRAY), value(Array()) {
+        for (auto it : vec) {
+            value.array.emplace_back(std::move(it));
+        }
+    }
+
+    ~Datum() {
+        value.destroy(type);
     }
 
     template <class R, class F, class ...A>
@@ -73,14 +111,14 @@ private:
         NIL, BOOLEAN, NUMBER, STRING, OBJECT, ARRAY,
         // TIME, POINT, LINE, POLYGON, BINARY
     };
-    const Type type;
+    Type type;
 
     union datum_value {
-        const bool boolean;
-        const double number;
-        const std::string string;
-        const Object object;
-        const Array array;
+        bool boolean;
+        double number;
+        std::string string;
+        Object object;
+        Array array;
 
         datum_value() { }
         datum_value(bool boolean_) : boolean(boolean_) { }
@@ -93,6 +131,25 @@ private:
         datum_value(Array&& array_) : array(std::move(array_)) { }
 
         datum_value(Type type, const datum_value& other){
+            set(type, other);
+        }
+
+        datum_value(Type type, datum_value&& other){
+            set(type, std::move(other));
+        }
+
+        void set(Type type, datum_value&& other){
+            switch(type){
+            case Type::NIL: break;
+            case Type::BOOLEAN: new (this) bool(other.boolean); break;
+            case Type::NUMBER: new (this) double(other.number); break;
+            case Type::STRING: new (this) std::string(std::move(other.string)); break;
+            case Type::OBJECT: new (this) Object(std::move(other.object)); break;
+            case Type::ARRAY: new (this) Array(std::move(other.array)); break;
+            }
+        }
+
+        void set(Type type, const datum_value& other){
             switch(type){
             case Type::NIL: break;
             case Type::BOOLEAN: new (this) bool(other.boolean); break;
@@ -102,57 +159,21 @@ private:
             case Type::ARRAY: new (this) Array(other.array); break;
             }
         }
+
+        void destroy(Type type) {
+            switch(type){
+            case Type::NIL: break;
+            case Type::BOOLEAN: break;
+            case Type::NUMBER: break;
+            case Type::STRING: { typedef std::string str; string.~str(); } break;
+            case Type::OBJECT: object.~Object(); break;
+            case Type::ARRAY: array.~Array(); break;
+            } 
+        }
+
         ~datum_value() { }
-    } value;
+    };
+    datum_value value;
 };
-
-
-Datum nil();
-Datum expr(bool boolean);
-Datum expr(double number);
-Datum expr(int number);
-Datum expr(const std::string& string);
-Datum expr(std::string&& string);
-
-template <class T>
-Datum expr(const std::map<std::string, T>& map) {
-    Object object;
-    for (auto it : map) {
-        std::pair<std::string, Datum> pair(it.left, expr(it.right));
-        object.insert(pair);
-    }
-    return Datum(std::move(object));
-}
-
-template <class T>
-Datum expr(std::map<std::string, T>&& map) {
-    Object object;
-    for (auto it : map) {
-        std::pair<std::string, Datum> pair(it.first, expr(std::move(it.second)));
-        object.insert(pair);
-    }
-    return Datum(std::move(object));
-}
-
-template <class T>
-Datum expr(const std::vector<T>& vec) {
-    Array array;
-    for (auto it : vec) {
-        array.emplace_back(it);
-    }
-    return Datum(std::move(array));
-}
-
-template <class T>
-Datum expr(std::vector<T>&& vec) {
-    Array array;
-    for (auto it : vec) {
-        array.emplace_back(std::move(it));
-    }
-    return Datum(std::move(array));
-}
-
-Datum expr(const Datum& datum);
-Datum expr(Datum&& datum);
 
 }

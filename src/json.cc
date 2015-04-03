@@ -221,7 +221,7 @@ Datum read_number(BufferedInputStream& stream, char first) {
     if (*end != 0) {
         throw Error("Invalid JSON number '%s'", buf);
     }
-    return expr(number);
+    return Datum(number);
 }
 
 Datum read_datum(BufferedInputStream& stream) {
@@ -233,16 +233,16 @@ Datum read_datum(BufferedInputStream& stream) {
     case '[':
         return read_array(stream);
     case '"':
-        return expr(read_string(stream));
+        return Datum(read_string(stream));
     case 't':
         read_exact(stream, "rue");
-        return expr(true);
+        return Datum(true);
     case 'f':
         read_exact(stream, "alse");
-        return expr(false);
+        return Datum(false);
     case 'n':
         read_exact(stream, "ull");
-        return nil();
+        return Datum(Nil());
         break;
     default:
         if (strchr("0123456789-", c)) {
@@ -296,11 +296,11 @@ struct datum_writer {
         for (auto it : object) {
             if (!first) {
                 out.write(",");
-                first = false;
             }
             (*this)(it.first, out);
             out.write(":");
             it.second.apply<void>(*this, out);
+            first = false;
         }
         out.write("}");
     }
@@ -310,9 +310,9 @@ struct datum_writer {
         for (auto it : array) {
             if (!first) {
                 out.write(",");
-                first = false;
             }
             it.apply<void>(*this, out);
+            first = false; 
         }        
         out.write("]");
     }
