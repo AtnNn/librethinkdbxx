@@ -112,6 +112,7 @@ public:
     Object* get_object();
     Datum* get_field(std::string);
     Array* get_array();
+    Datum* get_nth(size_t);
 
     bool& extract_boolean();
     double& extract_number();
@@ -119,6 +120,7 @@ public:
     Object& extract_object();
     Datum& extract_field(std::string);
     Array& extract_array();
+    Datum& extract_nth(size_t);
 
     int compare(const Datum&) const;
     bool operator== (const Datum&);

@@ -227,9 +227,29 @@ public:
     Datum run(Connection&);
     Cursor run_cursor(Connection&);
 
-    // TODO: binary, do/funcall, .opt, operator! (must take void)
+    template <class ...T>
+    Query do_(T&& ...a) && {
+        auto list = { expr(std::forward<T>(a))... };
+        std::vector<Query> args;
+        args.reserve(list.size() + 1);
+        args.emplace_back(std::move(*(list.end()-1)));
+        args.emplace_back(std::move(*this));
+        for (auto it = list.begin(); it + 1 != args.end(); ++it) {
+            args.emplace_back(std::move(*it));
+        }
+        return Query(TT::FUNCALL, args);
+    }    
+
+    Query opt(OptArgs&& optargs) && {
+        return Query(std::move(datum), std::move(optargs));
+    }
+
+    //funcall, .opt, operator! (must take void)
+
+    // TODO: binary
 
 private:
+    Query(Datum&& orig, OptArgs&& optargs);
     Datum datum;
 };
 
@@ -314,5 +334,10 @@ C_(polygon, POLYGON)
 #undef C1
 #undef C2
 #undef CO1
+
+template <class R, class ...T>
+Query do_(R&& a, T&& ...b) {
+    return expr(std::forward<R>(a)).do_(std::forward<T>(b)...);
+}
 
 }

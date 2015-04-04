@@ -52,6 +52,18 @@ Datum Query::run(Connection& conn) {
     throw Error("Impossible");
 }
 
+Query::Query(Datum&& orig, OptArgs&& new_optargs) : datum(Nil()) {
+    Datum* cur = orig.get_nth(2);
+    Object optargs;
+    if (cur) {
+        optargs = std::move(cur->extract_object());
+    }
+    for (auto& it : new_optargs) {
+        optargs.emplace(std::move(it.first), it.second.datum);
+    }
+    datum = Array{ std::move(orig.extract_nth(0)), std::move(orig.extract_nth(1)), std::move(optargs) };
+}
+
 Query nil() {
     return Query(Nil());
 }

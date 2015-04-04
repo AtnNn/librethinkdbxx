@@ -43,6 +43,16 @@ Datum* Datum::get_field(std::string key) {
     return &it->second;
 }
 
+Datum* Datum::get_nth(size_t i) {
+    if (type != Type::ARRAY) {
+        return NULL;
+    }
+    if (i >= value.array.size()) {
+        return NULL;
+    }
+    return &value.array[i];
+}
+
 Object* Datum::get_object() {
     if (type == Type::OBJECT) {
         return &value.object;
@@ -96,6 +106,16 @@ Datum& Datum::extract_field(std::string key) {
         throw Error("extract_field: No such key in object");
     }
     return it->second;
+}
+
+Datum& Datum::extract_nth(size_t i) {
+    if (type != Type::ARRAY) {
+        throw Error("extract_nth: Not an array");
+    }
+    if (i >= value.array.size()) {
+        throw Error("extract_nth: index too large");
+    }
+    return value.array[i];
 }
 
 Array& Datum::extract_array() {
