@@ -41,6 +41,7 @@ public:
 private:
     Response wait_for_response(uint64_t);
     void close_token(uint64_t);
+    void ask_for_more(uint64_t);
 
     friend class ResponseBuffer;
     friend class Token;
@@ -77,6 +78,10 @@ public:
     Token(const Token&) = delete;
     Token(Token&& other) : conn(other.conn), token(other.token) {
         other.conn = NULL;
+    }
+
+    void ask_for_more() {
+        conn->ask_for_more(token);
     }
 
     Response wait_for_response() {

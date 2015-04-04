@@ -3,6 +3,7 @@
 #include "datum.h"
 #include "net.h"
 #include "protocol_defs.h"
+#include "cursor.h"
 
 namespace RethinkDB {
 
@@ -50,16 +51,24 @@ public:
         datum = Array{ type, std::move(dargs), std::move(oargs) };
     }
 
-    template <class T>
-    Query operator+ (T&& a) && {
-        return Query(TT::ADD, std::vector<Query>{ std::move(*this), expr(std::forward<T>(a)) });
-    }
+#define COMMAND0(name, type) Query name() && {         \
+        return Query(TT::type, std::vector<Query>{ std::move(*this) }); }
+#define COMMAND1(name, type) template <class T> Query name(T&& a) && { \
+        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+                    expr(std::forward<T>(a)) }); }
+#define COMMAND2(name, type) template <class T, class U> Query name(T&& a, U&& b) && { \
+        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+                    expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); }
 
-    Query count() && {
-        return Query(TT::COUNT, std::vector<Query>{ std::move(*this) });
-    }
+    COMMAND1(operator+, ADD);
+    COMMAND0(count, COUNT);
+
+#undef COMMAND0
+#undef COMMAND1
+#undef COMMAND2
 
     Datum run(Connection&);
+    Cursor run_cursor(Connection&);
 
 private:
     Datum datum;
@@ -72,9 +81,20 @@ Query expr(T&& a) {
     return Query(std::forward<T>(a));
 }
 
-template <class T>
-Query table(T&& table) {
-    return Query(TT::TABLE, std::vector<Query>{ expr(std::forward<T>(table)) });
-}
+#define COMMAND0(name) Query name();
+#define COMMAND0_IMPL(name, type) Query name() { return Query(TT::type, std::vector<Query>{}); }
+#define COMMAND1(name, type) template <class T> Query name(T&& a) { \
+        return Query(TT::type, std::vector<Query>{  expr(std::forward<T>(a)) }); }
+#define COMMAND2(name, type) template <class T, class U> Query name(T&& a, U&& b) { \
+        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); }
+
+COMMAND1(table, TABLE);
+COMMAND0(range);
+COMMAND1(range, RANGE);
+COMMAND2(range, RANGE);
+
+#undef COMMAND0
+#undef COMMAND1
+#undef COMMAND2
 
 }

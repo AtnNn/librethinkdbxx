@@ -39,27 +39,9 @@ Datum Query::run(Connection& conn) {
     case RT::SUCCESS_SEQUENCE:
         return Datum(std::move(response.result));
     case RT::SUCCESS_PARTIAL:
-        array = std::move(response.result);
-        while (true) {
-            Response response = token.wait_for_response();
-            switch (response.type) {
-            case RT::SUCCESS_SEQUENCE:
-                for (auto& it : response.result) {
-                    array.emplace_back(std::move(it));
-                }
-                return Datum(std::move(array));
-            case RT::SUCCESS_PARTIAL:
-                for (auto& it : response.result) {
-                    array.emplace_back(std::move(it));
-                }
-                continue;
-            case RT::SUCCESS_ATOM:
-            case RT::WAIT_COMPLETE:
-            case RT::CLIENT_ERROR:
-            case RT::COMPILE_ERROR:
-            case RT::RUNTIME_ERROR:
-                throw response.as_error(); 
-            }
+        {
+            Cursor cursor(std::move(token), std::move(response));
+            return Datum(cursor.toArray());
         }
     case RT::WAIT_COMPLETE:
     case RT::CLIENT_ERROR:
@@ -73,5 +55,14 @@ Datum Query::run(Connection& conn) {
 Query nil() {
     return Query(Nil());
 }
+
+Cursor Query::run_cursor(Connection& conn) {
+    OutputBuffer out;
+    write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Object{}}, out);
+    Token token = conn.start_query(out.buffer);
+    return Cursor(std::move(token));
+}
+
+COMMAND0_IMPL(range, RANGE);
 
 }

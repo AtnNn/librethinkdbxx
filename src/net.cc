@@ -200,6 +200,11 @@ void Connection::WriteLock::close_token(uint64_t token) {
     send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::STOP))})));
 }
 
+void Connection::ask_for_more(uint64_t token) {
+    WriteLock writer(*this);
+    writer.send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::CONTINUE))})));
+}
+
 class ResponseBuffer : public BufferedInputStream {
 public:
     ResponseBuffer(Connection::ReadLock* reader_, uint32_t length)
@@ -297,26 +302,38 @@ void Connection::WriteLock::send_query(uint64_t token, const std::string& query)
 
 Error Response::as_error() {
     std::string repr = write_datum(Datum(result));
-    return Error("Invalid response type %d: %s", static_cast<int>(type), repr.c_str());
+    std::string err;
+    using RT = Protocol::Response::ResponseType;
+    switch (type) {
+    case RT::SUCCESS_SEQUENCE: err = "SUCCESS_SEQUENCE"; break;
+    case RT::SUCCESS_PARTIAL:  err = "SUCCESS_PARTIAL"; break;
+    case RT::SUCCESS_ATOM: err = "SUCCESS_ATOM"; break;
+    case RT::WAIT_COMPLETE: err = "WAIT_COMPLETE"; break;
+    case RT::CLIENT_ERROR: err = "CLIENT_ERROR"; break;
+    case RT::COMPILE_ERROR: err = "COMPILE_ERROR"; break;
+    case RT::RUNTIME_ERROR: err = "RUNTIME_ERROR"; break;
+    }
+    throw Error("Unexpected response: %s: %s", err.c_str(), repr.c_str());
 }
 
 Protocol::Response::ResponseType response_type(double t) {
     int n = static_cast<int>(t);
+    using RT = Protocol::Response::ResponseType;
     switch (n) {
-    case static_cast<int>(Protocol::Response::ResponseType::SUCCESS_ATOM):
-        return Protocol::Response::ResponseType::SUCCESS_ATOM;
-    case static_cast<int>(Protocol::Response::ResponseType::SUCCESS_SEQUENCE):
-        return Protocol::Response::ResponseType::SUCCESS_SEQUENCE;
-    case static_cast<int>(Protocol::Response::ResponseType::SUCCESS_PARTIAL):
-        return Protocol::Response::ResponseType::SUCCESS_PARTIAL;
-    case static_cast<int>(Protocol::Response::ResponseType::WAIT_COMPLETE):
-        return Protocol::Response::ResponseType::WAIT_COMPLETE;
-    case static_cast<int>(Protocol::Response::ResponseType::CLIENT_ERROR):
-        return Protocol::Response::ResponseType::CLIENT_ERROR;
-    case static_cast<int>(Protocol::Response::ResponseType::COMPILE_ERROR):
-        return Protocol::Response::ResponseType::COMPILE_ERROR;
-    case static_cast<int>(Protocol::Response::ResponseType::RUNTIME_ERROR):
-        return Protocol::Response::ResponseType::RUNTIME_ERROR;
+    case static_cast<int>(RT::SUCCESS_ATOM):
+        return RT::SUCCESS_ATOM;
+    case static_cast<int>(RT::SUCCESS_SEQUENCE):
+        return RT::SUCCESS_SEQUENCE;
+    case static_cast<int>(RT::SUCCESS_PARTIAL):
+        return RT::SUCCESS_PARTIAL;
+    case static_cast<int>(RT::WAIT_COMPLETE):
+        return RT::WAIT_COMPLETE;
+    case static_cast<int>(RT::CLIENT_ERROR):
+        return RT::CLIENT_ERROR;
+    case static_cast<int>(RT::COMPILE_ERROR):
+        return RT::COMPILE_ERROR;
+    case static_cast<int>(RT::RUNTIME_ERROR):
+        return RT::RUNTIME_ERROR;
     default:
         throw Error("Unknown response type");
     }

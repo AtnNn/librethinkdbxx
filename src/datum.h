@@ -113,16 +113,19 @@ public:
     Datum* get_field(std::string);
     Array* get_array();
 
-    bool extract_boolean();
-    double extract_number();
-    std::string extract_string() &&;
-    Object extract_object() &&;
-    Datum extract_field(std::string) &&;
-    Array extract_array() &&;
+    bool& extract_boolean();
+    double& extract_number();
+    std::string& extract_string();
+    Object& extract_object();
+    Datum& extract_field(std::string);
+    Array& extract_array();
+
+    int compare(const Datum&) const;
+    bool operator== (const Datum&);
 
 private:
     enum class Type {
-        NIL, BOOLEAN, NUMBER, STRING, OBJECT, ARRAY,
+        ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, STRING,
         // TIME, POINT, LINE, POLYGON, BINARY
     };
     Type type;

@@ -1,8 +1,8 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -g -I'build/inc' -Wall -pthread
+CXXFLAGS = -std=c++11 -g -I'build/gen' -Wall -pthread
 
-modules = net datum json query
-headers = error stream datum json net query
+modules = net datum json query cursor
+headers = error stream datum json net cursor query
 
 o_files = $(patsubst %, build/obj/%.o, $(modules))
 d_files = $(patsubst %, build/dep/%.d, $(modules))
@@ -17,18 +17,18 @@ build/librethinkdb++.a: $(o_files)
 build/librethink++.so: $(o_files)
 	$(CXX) $(CXXFLAGS) -shared -o $@ $^
 
-build/obj/%.o: src/%.cc build/inc/protocol_defs.h
+build/obj/%.o: src/%.cc build/gen/protocol_defs.h
 	@mkdir -p $(dir $@)
 	@mkdir -p $(dir build/dep/$*.d)
 	$(CXX) $(CXXFLAGS) -c -o $@ $< -MP -MQ $@ -MD -MF build/dep/$*.d
 
-build/inc/protocol_defs.h: reql/ql2.proto reql/gen.py | build/inc/.
+build/gen/protocol_defs.h: reql/ql2.proto reql/gen.py | build/gen/.
 	python reql/gen.py $< > $@
 
 clean:
 	rm -rf build
 
-build/include/rethinkdb.h: build/inc/protocol_defs.h $(patsubst %, src/%.h, $(headers)) | build/include/.
+build/include/rethinkdb.h: build/gen/protocol_defs.h $(patsubst %, src/%.h, $(headers)) | build/include/.
 	( echo "// Auto-generated file, built from $^"; \
 	  echo '#pragma once'; \
 	  cat $^ | \
