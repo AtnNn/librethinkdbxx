@@ -163,6 +163,7 @@ public:
     C1(div, DIV)
     C1(operator/, DIV)
     C1(mod, MOD)
+    C1(operator%, MOD)
     C_(and_, AND)
     C1(operator&&, AND)
     C_(or_, OR)
@@ -332,7 +333,12 @@ C_(polygon, POLYGON)
 #undef C0
 #undef C1
 #undef C2
+#undef C3
+#undef C4
+#undef C7
+#undef C_
 #undef CO1
+#undef CO2
 
 template <class R, class ...T>
 Query do_(R&& a, T&& ...b) {
