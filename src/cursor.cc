@@ -13,6 +13,10 @@ Cursor::Cursor(Token&& token_, Response&& response) : token(std::move(token_)) {
     add_response(std::move(response));
 }
 
+Cursor::~Cursor() {
+    close();
+}
+
 Datum& Cursor::next() {
     while (true) {
         if (index == buffer.size()) {
@@ -39,7 +43,7 @@ void Cursor::each(std::function<void(Datum&&)> f) {
     }
 }
 
-Array Cursor::toArray() {
+Array Cursor::to_array() {
     if (index != 0) {
         buffer.erase(buffer.begin(), buffer.begin() + index);
         index = 0;
@@ -54,6 +58,23 @@ Array Cursor::toArray() {
 void Cursor::close() {
     token.close();
     no_more = true;
+}
+
+bool Cursor::has_next() {
+    while (true) {
+        if (index == buffer.size()) {
+            if (no_more) {
+                return false;
+            }
+            add_response(token.wait_for_response());
+        } else {
+            return true;
+        }
+    }
+}
+
+bool Cursor::is_single() {
+    return single;
 }
 
 void Cursor::add_results(Array&& results) {
@@ -80,6 +101,9 @@ void Cursor::add_response(Response&& response) {
         add_results(std::move(response.result));
         break;
     case RT::SUCCESS_ATOM:
+        add_results(std::move(response.result));
+        single = true;
+        break;
     case RT::WAIT_COMPLETE:
     case RT::CLIENT_ERROR:
     case RT::COMPILE_ERROR:

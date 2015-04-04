@@ -194,8 +194,6 @@ void Connection::WriteLock::close_token(uint64_t token) {
     const auto& it = conn->guarded_cache.find(token);
     if (it != conn->guarded_cache.end()) {
         it->second.closed = true;
-        it->second.cond.notify_all();
-        conn->guarded_cache.erase(it);
     }
     send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::STOP))})));
 }
@@ -277,7 +275,11 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard)
         } else {
             guard.lock();
             TokenCache& cache = conn->guarded_cache[token_got];
-            cache.responses.emplace(std::move(datum));
+            if (false) {
+                // TODO: remove from cache if last response for token
+            } else if (!cache.closed) {
+                cache.responses.emplace(std::move(datum));
+            }
             cache.cond.notify_all();
             guard.unlock();
         }

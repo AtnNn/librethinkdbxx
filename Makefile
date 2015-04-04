@@ -23,7 +23,7 @@ build/obj/%.o: src/%.cc build/gen/protocol_defs.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $< -MP -MQ $@ -MD -MF build/dep/$*.d
 
 build/gen/protocol_defs.h: reql/ql2.proto reql/gen.py | build/gen/.
-	python reql/gen.py $< > $@
+	python3 reql/gen.py $< > $@
 
 clean:
 	rm -rf build
@@ -36,8 +36,12 @@ build/include/rethinkdb.h: build/gen/protocol_defs.h $(patsubst %, src/%.h, $(he
 	    grep -v '^#include "'; \
 	) > $@
 
-build/test: test/test.cc build/librethinkdb++.a build/include/rethinkdb.h
-	$(CXX) $(CXXFLAGS) -o $@ -isystem build/include $< build/librethinkdb++.a
+build/gen/upstream_tests.cc: test/yaml_to_cxx.py
+	python3 test/yaml_to_cxx.py test/upstream > $@
+
+test_sources = test/testlib.cc test/test.cc build/gen/upstream_tests.cc
+build/test: $(test_sources) build/librethinkdb++.a build/include/rethinkdb.h
+	$(CXX) $(CXXFLAGS) -o $@ -isystem build/include -I test $(test_sources) build/librethinkdb++.a
 
 test: build/test
 	build/test

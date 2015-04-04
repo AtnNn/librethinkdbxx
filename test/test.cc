@@ -1,51 +1,6 @@
 #include <signal.h>
 
-#include <sstream>
-#include <cstdio>
-
-#include <rethinkdb.h>
-
-namespace R = RethinkDB;
-
-int failed = 0;
-int count = 0;
-
-std::unique_ptr<R::Connection> conn;
-
-std::string to_string(const char* string) {
-    return string;
-}
-
-std::string to_string(const R::Datum& datum) {
-    return write_datum(datum);
-}
-
-template <class T>
-std::string to_string(T a) {
-    std::ostringstream s;
-    s << a;
-    return s.str();
-}
-
-template <class T, class U>
-bool equal(T a, U b) {
-    return a == b;
-}
-
-bool equal(const char* a, const char* b) {
-    return !strcmp(a, b);
-}
-
-template <class T, class U>
-void test_eq(T&& val, U&& expected) {
-    count ++;
-    if (!equal(val, expected)) {
-        failed = true;
-        printf("FAILURE: Expected `%s' but got `%s'\n",
-               to_string(expected).c_str(),
-               to_string(val).c_str());
-    }
-}
+#include "testlib.h"
 
 void test_json(const char* string, const char* ret = "") {
     test_eq(R::write_datum(R::read_datum(string)).c_str(), ret[0] ? ret : string);
