@@ -63,6 +63,13 @@ Cursor Query::run_cursor(Connection& conn) {
     return Cursor(std::move(token));
 }
 
-COMMAND0_IMPL(range, RANGE);
+C0_IMPL(db_list, DB_LIST)
+C0_IMPL(table_list, TABLE_LIST)
+C0_IMPL(row, IMPLICIT_VAR)
+C0_IMPL(random, RANDOM)
+C0_IMPL(now, NOW)
+C0_IMPL(range, RANGE)
+C0_IMPL(error, ERROR)
+C0_IMPL(uuid, UUID)
 
 }

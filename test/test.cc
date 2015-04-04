@@ -81,6 +81,10 @@ void test_cursor() {
     test_eq(array.size(), 9999);
     test_eq(*array.begin(), 1);
     test_eq(*array.rbegin(), 9999);
+    int i = 0;
+    R::range(3).run_cursor(*conn).each([&i](R::Datum&& datum){
+            test_eq(datum, i++); });
+    
 }
 
 int main() {
