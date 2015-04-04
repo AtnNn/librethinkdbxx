@@ -16,13 +16,13 @@ void test_json(const char* string) {
 }
 
 void test_connect() {
-    R::Connection conn = R::connect();
+    std::unique_ptr<R::Connection> conn = R::connect();
     printf("Waiting for result (1 + 2): ");
     fflush(stdout);
-    write_datum((R::expr(1) + 2).run(conn), out);
+    write_datum((R::expr(1) + 2).run(*conn), out);
     printf("\nWaiting for result (r.table('test').count()): ");
     fflush(stdout);
-    write_datum(R::table("test").count().run(conn), out);
+    write_datum(R::table("test").count().run(*conn), out);
     puts("");
 }
 

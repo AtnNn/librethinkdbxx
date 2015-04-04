@@ -6,6 +6,7 @@
 #include <functional>
 
 #include "protocol_defs.h"
+#include "error.h"
 
 namespace RethinkDB {
 
@@ -60,28 +61,28 @@ public:
 
     template <class T>
     Datum(const std::map<std::string, T>& map) : type(Type::OBJECT), value(Object()) {
-        for (auto it : map) {
+        for (const auto& it : map) {
             value.object.emplace(it.left, Datum(it.right));
         }
     }
 
     template <class T>
     Datum(std::map<std::string, T>&& map) : type(Type::OBJECT), value(Object()) {
-        for (auto it : map) {
+        for (auto& it : map) {
             value.object.emplace(it.first, Datum(std::move(it.second)));
         }
     }
 
     template <class T>
     Datum(const std::vector<T>& vec) : type(Type::ARRAY), value(Array()) {
-        for (auto it : vec) {
+        for (const auto& it : vec) {
             value.array.emplace_back(it);
         }
     }
 
     template <class T>
     Datum(std::vector<T>&& vec) : type(Type::ARRAY), value(Array()) {
-        for (auto it : vec) {
+        for (auto& it : vec) {
             value.array.emplace_back(std::move(it));
         }
     }
@@ -100,6 +101,7 @@ public:
         case Type::OBJECT: return f(value.object, std::forward<A>(args)...); break;
         case Type::ARRAY: return f(value.array, std::forward<A>(args)...); break;
         }
+        throw Error("Impossible");
     }
 
     bool is_nil();

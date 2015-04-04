@@ -2,6 +2,9 @@
 
 #include <string>
 #include <queue>
+#include <mutex>
+#include <memory>
+#include <condition_variable>
 
 #include "protocol_defs.h"
 #include "datum.h"
@@ -32,37 +35,44 @@ public:
     Connection(const Connection&) = delete;
     Connection(Connection&&) = default;
 
-    Token send_query(std::string);
+    Token start_query(const std::string&);
     void close();
 
 private:
-    friend class ResponseBuffer;
+    Response wait_for_response(uint64_t);
+    void close_token(uint64_t);
 
-    size_t recv_some(char* buf, size_t size);
-    void recv(char*, size_t);
-    std::string recv(size_t);
-    size_t recv_cstring(char*, size_t);
-    void send(const char*, size_t);
-    void send(std::string);
+    friend class ResponseBuffer;
+    friend class Token;
 
     const uint32_t version_magic = static_cast<uint32_t>(Protocol::VersionDummy::Version::V0_4);
     const uint32_t json_magic = static_cast<uint32_t>(Protocol::VersionDummy::Protocol::JSON);
 
-    friend class Token;
-    uint64_t new_token();
-    void close_token(uint64_t);
-    Response wait_for_response(uint64_t); 
+    class ReadLock;
+    class WriteLock;
+    class CacheLock;
 
-    std::map<uint32_t, std::queue<Datum>> cache;
-    uint64_t next_token;
-    int sockfd;
+    std::mutex read_lock;
+    std::mutex write_lock;
+    std::mutex cache_lock;
+
+    struct TokenCache {
+        bool closed = false;
+        std::condition_variable cond;
+        std::queue<Datum> responses;
+    };
+
+    std::map<uint32_t, TokenCache> guarded_cache;
+    uint64_t guarded_next_token;
+    int guarded_sockfd;
+    bool guarded_loop_active;
 };
 
-Connection connect(std::string host = "localhost", int port = 28015, std::string auth_key = "");
+std::unique_ptr<Connection> connect(std::string host = "localhost", int port = 28015, std::string auth_key = "");
 
 class Token {
 public:
-    Token(Connection* conn_) : conn(conn_), token(conn_->new_token()) { }
+    Token(Connection::WriteLock&);
 
     Token(const Token&) = delete;
     Token(Token&& other) : conn(other.conn), token(other.token) {

@@ -293,7 +293,7 @@ struct datum_writer {
     void operator() (const Object& object, OutputStream& out) {
         out.write("{");
         bool first = true;
-        for (auto it : object) {
+        for (const auto& it : object) {
             if (!first) {
                 out.write(",");
             }
@@ -307,7 +307,7 @@ struct datum_writer {
     void operator() (const Array& array, OutputStream& out) {
         out.write("[");
         bool first = true;
-        for (auto it : array) {
+        for (const auto& it : array) {
             if (!first) {
                 out.write(",");
             }

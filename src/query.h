@@ -32,7 +32,7 @@ public:
 
     Query(Protocol::Term::TermType type, std::vector<Query>&& args) : datum(Array()) {
         Array dargs;
-        for (auto it : args) {
+        for (auto& it : args) {
             dargs.emplace_back(std::move(it.datum));
         }
         datum = Datum(Array{ type, std::move(dargs) });
@@ -40,11 +40,11 @@ public:
 
     Query(Protocol::Term::TermType type, std::vector<Query>&& args, std::map<std::string, Query>&& optargs) : datum(Array()) {
         Array dargs;
-        for (auto it : args) {
+        for (auto& it : args) {
             dargs.emplace_back(std::move(it.datum));
         }
         Object oargs;
-        for (auto it : optargs) {
+        for (auto& it : optargs) {
             oargs.emplace(it.first, std::move(it.second.datum));
         }        
         datum = Array{ type, std::move(dargs), std::move(oargs) };
