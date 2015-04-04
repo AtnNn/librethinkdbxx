@@ -179,7 +179,8 @@ public:
     C1(operator<, LT)
     C1(le, LE)
     C1(operator<=, LE)
-    C1(not_, NOT)
+    C0(not_, NOT)
+    C0(operator!, NOT)
     C1(in_timezone, IN_TIMEZONE)
     C0(timezone, TIMEZONE)
     CO2(during, DURING)
@@ -244,8 +245,6 @@ public:
         return Query(std::move(datum), std::move(optargs));
     }
 
-    //funcall, .opt, operator! (must take void)
-
     // TODO: binary
 
 private:
@@ -307,7 +306,7 @@ C2(gt, GT)
 C2(ge, GE)
 C2(lt, LT)
 C2(le, LE)
-C2(not_, NOT)
+C1(not_, NOT)
 C0(random)
 C0(now)
 C4(time, TIME)
