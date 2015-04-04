@@ -1,0 +1,235 @@
+desc: Tests of converstion to and from the RQL string type
+tests:
+
+    # Simple strings
+    - py: r.expr('str')
+      js: [r('str'), r.expr('str')]
+      rb: r 'str'
+      ot: "'str'"
+    - cd: r.expr("str")
+      js: [r("str"), r.expr("str")]
+      ot: "\"str\""
+
+    # Unicode
+    
+    # Python supports unicode strings with the u'' pattern, except 3.0-3.2
+    - py: 
+        cd: r.expr(u'str')
+        ot: u'str'
+      py3.0: r.expr('str')
+      py3.1: r.expr('str')
+      py3.2: r.expr('str')
+      cd: []
+      ot: "'str'"
+      
+    - py:
+        cd: "r.expr(u'こんにちは')"
+        ot: "u'こんにちは'"
+      py3.0: "r.expr('こんにちは')"
+      py3.1: "r.expr('こんにちは')"
+      py3.2: "r.expr('こんにちは')"
+      rb: "r 'こんにちは'"
+      js: []
+      ot: "'こんにちは'"
+
+    - cd: r.expr('foo').type_of()
+      ot: "'STRING'"
+
+    # test coercions
+    - cd: r.expr('foo').coerce_to('string')
+      ot: ('foo')
+    - cd: r.expr('-1.2').coerce_to('NUMBER')
+      ot: -1.2
+    - cd: r.expr('--1.2').coerce_to('NUMBER')
+      ot: err("RqlRuntimeError", "Could not coerce `--1.2` to NUMBER.", [])
+    - cd: r.expr('-1.2-').coerce_to('NUMBER')
+      ot: err("RqlRuntimeError", "Could not coerce `-1.2-` to NUMBER.", [])
+    - cd: r.expr('0xa').coerce_to('NUMBER')
+      ot: 10
+    - cd: r.expr('inf').coerce_to('NUMBER')
+      ot: |
+        err("RqlRuntimeError", "Non-finite number: inf", [])
+
+    # This is how these edge cases are handled in Python.
+    - cd: r.expr('').split()
+      ot: ([])
+    - cd: r.expr('').split(null)
+      ot: ([])
+    - cd: r.expr('').split(' ')
+      ot: ([''])
+    - cd: r.expr('').split('')
+      ot: ([])
+    - cd: r.expr('').split(null, 5)
+      ot: ([])
+    - cd: r.expr('').split(' ', 5)
+      ot: ([''])
+    - cd: r.expr('').split('', 5)
+      ot: ([])
+
+    - cd: r.expr('aaaa bbbb  cccc ').split()
+      ot: (['aaaa', 'bbbb', 'cccc'])
+    - cd: r.expr('aaaa bbbb  cccc ').split(null)
+      ot: (['aaaa', 'bbbb', 'cccc'])
+    - cd: r.expr('aaaa bbbb  cccc ').split(' ')
+      ot: (['aaaa', 'bbbb', '', 'cccc', ''])
+    - cd: r.expr('aaaa bbbb  cccc ').split('')
+      ot: (['a', 'a', 'a', 'a', ' ', 'b', 'b', 'b', 'b', ' ', ' ', 'c', 'c', 'c', 'c', ' '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('b')
+      ot: (['aaaa ', '', '', '', '  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('bb')
+      ot: (['aaaa ', '', '  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split(' bbbb  ')
+      ot: (['aaaa', 'cccc '])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb f').split('bb')
+      ot: (['aaaa ', '', '  cccc b d ', ' e ', '', ' f'])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb f').split(' bbbb  ')
+      ot: (['aaaa', 'cccc b d bb e bbbb f'])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb  f').split(' bbbb  ')
+      ot: (['aaaa', 'cccc b d bb e', 'f'])
+
+    - cd: r.expr('aaaa bbbb  cccc ').split(null, 3)
+      ot: (['aaaa', 'bbbb', 'cccc'])
+    - cd: r.expr('aaaa bbbb  cccc ').split(' ', 5)
+      ot: (['aaaa', 'bbbb', '', 'cccc', ''])
+    - cd: r.expr('aaaa bbbb  cccc ').split('', 5)
+      ot: (['a', 'a', 'a', 'a', ' ', 'bbbb  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('b', 5)
+      ot: (['aaaa ', '', '', '', '  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('bb', 3)
+      ot: (['aaaa ', '', '  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split(' bbbb  ', 2)
+      ot: (['aaaa', 'cccc '])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb f').split('bb', 6)
+      ot: (['aaaa ', '', '  cccc b d ', ' e ', '', ' f'])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb f').split(' bbbb  ', 2)
+      ot: (['aaaa', 'cccc b d bb e bbbb f'])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb  f').split(' bbbb  ', 3)
+      ot: (['aaaa', 'cccc b d bb e', 'f'])
+
+    - cd: r.expr('aaaa bbbb  cccc ').split(null, 2)
+      ot: (['aaaa', 'bbbb', 'cccc '])
+    - cd: r.expr("a  b  ").split(null, 2)
+      ot: (["a", "b"])
+    - cd: r.expr('aaaa bbbb  cccc ').split(' ', 4)
+      ot: (['aaaa', 'bbbb', '', 'cccc', ''])
+    - cd: r.expr('aaaa bbbb  cccc ').split('', 4)
+      ot: (['a', 'a', 'a', 'a', ' bbbb  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('b', 4)
+      ot: (['aaaa ', '', '', '', '  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('bb', 2)
+      ot: (['aaaa ', '', '  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split(' bbbb  ', 1)
+      ot: (['aaaa', 'cccc '])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb f').split('bb', 5)
+      ot: (['aaaa ', '', '  cccc b d ', ' e ', '', ' f'])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb f').split(' bbbb  ', 1)
+      ot: (['aaaa', 'cccc b d bb e bbbb f'])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb  f').split(' bbbb  ', 2)
+      ot: (['aaaa', 'cccc b d bb e', 'f'])
+
+    - cd: r.expr('aaaa bbbb  cccc ').split(null, 1)
+      ot: (['aaaa', 'bbbb  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split(' ', 2)
+      ot: (['aaaa', 'bbbb', ' cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('', 2)
+      ot: (['a', 'a', 'aa bbbb  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('b', 2)
+      ot: (['aaaa ', '', 'bb  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split('bb', 2)
+      ot: (['aaaa ', '', '  cccc '])
+    - cd: r.expr('aaaa bbbb  cccc ').split(' bbbb  ', 2)
+      ot: (['aaaa', 'cccc '])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb f').split('bb', 2)
+      ot: (['aaaa ', '', '  cccc b d bb e bbbb f'])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb f').split(' bbbb  ', 2)
+      ot: (['aaaa', 'cccc b d bb e bbbb f'])
+    - cd: r.expr('aaaa bbbb  cccc b d bb e bbbb  f').split(' bbbb  ', 2)
+      ot: (['aaaa', 'cccc b d bb e', 'f'])
+
+    - cd: r.expr('  ').split()
+      ot: ([])
+    - cd: r.expr('  ').split(null)
+      ot: ([])
+    - cd: r.expr('  ').split(' ')
+      ot: (['', '', ''])
+    - cd: r.expr('  ').split(null, 5)
+      ot: ([])
+    - cd: r.expr('  ').split(' ', 5)
+      ot: (['', '', ''])
+
+    - cd: r.expr('  aaaa bbbb  cccc ').split()
+      ot: (['aaaa', 'bbbb', 'cccc'])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(null)
+      ot: (['aaaa', 'bbbb', 'cccc'])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(' ')
+      ot: (['', '', 'aaaa', 'bbbb', '', 'cccc', ''])
+    - cd: r.expr('  aaaa bbbb  cccc ').split('b')
+      ot: (['  aaaa ', '', '', '', '  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split('bb')
+      ot: (['  aaaa ', '', '  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(' bbbb  ')
+      ot: (['  aaaa', 'cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb f').split('bb')
+      ot: (['  aaaa ', '', '  cccc b d ', ' e ', '', ' f'])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb f').split(' bbbb  ')
+      ot: (['  aaaa', 'cccc b d bb e bbbb f'])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb  f').split(' bbbb  ')
+      ot: (['  aaaa', 'cccc b d bb e', 'f'])
+
+    - cd: r.expr('  aaaa bbbb  cccc ').split(null, 3)
+      ot: (['aaaa', 'bbbb', 'cccc'])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(' ', 5)
+      ot: (['', '', 'aaaa', 'bbbb', '', 'cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split('b', 5)
+      ot: (['  aaaa ', '', '', '', '  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split('bb', 3)
+      ot: (['  aaaa ', '', '  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(' bbbb  ', 2)
+      ot: (['  aaaa', 'cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb f').split('bb', 6)
+      ot: (['  aaaa ', '', '  cccc b d ', ' e ', '', ' f'])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb f').split(' bbbb  ', 2)
+      ot: (['  aaaa', 'cccc b d bb e bbbb f'])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb  f').split(' bbbb  ', 3)
+      ot: (['  aaaa', 'cccc b d bb e', 'f'])
+
+    - cd: r.expr('  aaaa bbbb  cccc ').split(null, 2)
+      ot: (['aaaa', 'bbbb', 'cccc '])
+    - cd: r.expr("a  b  ").split(null, 2)
+      ot: (["a", "b"])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(' ', 4)
+      ot: (['', '', 'aaaa', 'bbbb', ' cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split('b', 4)
+      ot: (['  aaaa ', '', '', '', '  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split('bb', 2)
+      ot: (['  aaaa ', '', '  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(' bbbb  ', 1)
+      ot: (['  aaaa', 'cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb f').split('bb', 5)
+      ot: (['  aaaa ', '', '  cccc b d ', ' e ', '', ' f'])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb f').split(' bbbb  ', 1)
+      ot: (['  aaaa', 'cccc b d bb e bbbb f'])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb  f').split(' bbbb  ', 2)
+      ot: (['  aaaa', 'cccc b d bb e', 'f'])
+
+    - cd: r.expr('  aaaa bbbb  cccc ').split(null, 1)
+      ot: (['aaaa', 'bbbb  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(' ', 2)
+      ot: (['', '', 'aaaa bbbb  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split('b', 2)
+      ot: (['  aaaa ', '', 'bb  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split('bb', 2)
+      ot: (['  aaaa ', '', '  cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc ').split(' bbbb  ', 2)
+      ot: (['  aaaa', 'cccc '])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb f').split('bb', 2)
+      ot: (['  aaaa ', '', '  cccc b d bb e bbbb f'])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb f').split(' bbbb  ', 2)
+      ot: (['  aaaa', 'cccc b d bb e bbbb f'])
+    - cd: r.expr('  aaaa bbbb  cccc b d bb e bbbb  f').split(' bbbb  ', 2)
+      ot: (['  aaaa', 'cccc b d bb e', 'f'])
+
+    - cd: r.expr("abc-dEf-GHJ").upcase()
+      ot: ("ABC-DEF-GHJ")
+    - cd: r.expr("abc-dEf-GHJ").downcase()
+      ot: ("abc-def-ghj")
