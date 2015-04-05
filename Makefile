@@ -1,4 +1,4 @@
-CXX = g++
+CXX = clang++
 CXXFLAGS = -std=c++11 -g -I'build/gen' -Wall -pthread
 
 modules = net datum json query cursor

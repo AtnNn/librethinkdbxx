@@ -8,6 +8,7 @@
 namespace RethinkDB {
 
 class Query;
+class Var;
 
 template <class T>
 Query expr(T&&);
@@ -23,32 +24,37 @@ struct datum_to_query_t {
 
 extern datum_to_query_t datum_to_query;
 
+int gen_var_id();
+
+using OptArgs = std::map<std::string, Query>;
+
 class Query {
 public:
-    Query(const Query& other) : datum(other.datum) { }
-    Query(Query&& other) : datum(std::move(other.datum)) { }
+    Query(const Query& other) : free_vars(other.free_vars), datum(other.datum) { }
+    Query(Query&& other) : free_vars(std::move(other.free_vars)), datum(std::move(other.datum)) { }
 
     template <class T>
     explicit Query(T&& a) : datum(Datum(a).apply<Datum>(datum_to_query)) { }
 
+    template <class ...A>
+    Query(std::function<Query(A...)> f);
+
     Query(Protocol::Term::TermType type, std::vector<Query>&& args) : datum(Array()) {
         Array dargs;
         for (auto& it : args) {
-            dargs.emplace_back(std::move(it.datum));
+            dargs.emplace_back(alpha_rename(std::move(it)));
         }
         datum = Datum(Array{ type, std::move(dargs) });
     }
 
-    using OptArgs = std::map<std::string, Query>;
-
     Query(Protocol::Term::TermType type, std::vector<Query>&& args, OptArgs&& optargs) : datum(Array()) {
         Array dargs;
         for (auto& it : args) {
-            dargs.emplace_back(std::move(it.datum));
+            dargs.emplace_back(alpha_rename(std::move(it)));
         }
         Object oargs;
         for (auto& it : optargs) {
-            oargs.emplace(it.first, std::move(it.second.datum));
+            oargs.emplace(it.first, alpha_rename(std::move(it.second)));
         }        
         datum = Array{ type, std::move(dargs), std::move(oargs) };
     }
@@ -217,6 +223,7 @@ public:
     CO0(reconfigure, RECONFIGURE)
     C0(status, STATUS)
     CO0(wait, WAIT) 
+    C_(operator(), FUNCALL)
 
 #undef C0
 #undef C1
@@ -239,17 +246,26 @@ public:
         for (auto it = list.begin(); it + 1 != args.end(); ++it) {
             args.emplace_back(std::move(*it));
         }
-        return Query(TT::FUNCALL, args);
+        return Query(TT::FUNCALL, std::move(args));
     }    
 
     Query opt(OptArgs&& optargs) && {
-        return Query(std::move(datum), std::move(optargs));
+        return Query(std::move(*this), std::move(optargs));
     }
 
     // TODO: binary
 
 private:
-    Query(Datum&& orig, OptArgs&& optargs);
+    friend class Var;
+
+    template <class _>
+    Var mkvar(std::vector<int>& vars);
+
+    Datum alpha_rename(Query&&);
+
+    Query(Query&& orig, OptArgs&& optargs);
+
+    std::map<int, int*> free_vars;
     Datum datum;
 };
 
@@ -259,6 +275,45 @@ template <class T>
 Query expr(T&& a) {
     return Query(std::forward<T>(a));
 }
+
+class Var {
+public:
+    Var(int* id_) : id(id_) { }
+    Query operator*() {
+        Query query(TT::VAR, std::vector<Query>{expr(*id)});
+        query.free_vars = {{*id, id}};
+        return query;
+    }
+private:
+    int* id;
+};
+
+template <class _>
+Var mkvar(std::vector<int>& vars) {
+    int id = gen_var_id();
+    vars.push_back(id);
+    return Var(&*vars.rbegin());
+}
+
+template <class ...A>
+Query::Query(std::function<Query(A...)> f) : datum(Nil()) {
+    std::vector<int> vars;
+    vars.reserve(sizeof...(A));
+    *this = f(Var(mkvar<A>(vars))...);
+    int* low = &*vars.begin();
+    int* high = &*vars.end();
+    for (auto it = free_vars.begin(); it != free_vars.end(); ) {
+        if (it->second >= low && it->second < high) {
+            if (it->first != *it->second) {
+                throw Error("Internal error: variable index mis-match");
+            }
+            free_vars.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+}
+
 
 #define C0(name) Query name();
 #define C0_IMPL(name, type) Query name() { return Query(TT::type, std::vector<Query>{}); }
@@ -280,10 +335,10 @@ Query expr(T&& a) {
             expr(std::forward<G>(g))}); }
 #define C_(name, type) template <class ...T> Query name(T&& ...a) { \
         return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a))... }); }
-#define CO1(name, type) template <class T> Query name(T&& a, Object&& optarg = {}) { \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), optarg }); }
-#define CO2(name, type) template <class T, class U> Query name(T&& a, U&& b, Object&& optarg = {}) { \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::forward<U>(b)}, optarg); }
+#define CO1(name, type) template <class T> Query name(T&& a, OptArgs&& optarg = {}) { \
+        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::move(optarg) }); }
+#define CO2(name, type) template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) { \
+        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::forward<U>(b)}, std::move(optarg)); }
 
 C1(db_create, DB_CREATE)
 C1(db_drop, DB_DROP)

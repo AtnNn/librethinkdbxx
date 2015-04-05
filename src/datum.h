@@ -92,7 +92,7 @@ public:
     }
 
     template <class R, class F, class ...A>
-    R apply(F f, A&& ...args) const {
+    R apply(F f, A&& ...args) const & {
         switch (type) {
         case Type::NIL: return f(Nil(), std::forward<A>(args)...); break;
         case Type::BOOLEAN: return f(value.boolean, std::forward<A>(args)...); break;
@@ -100,6 +100,19 @@ public:
         case Type::STRING: return f(value.string, std::forward<A>(args)...); break;
         case Type::OBJECT: return f(value.object, std::forward<A>(args)...); break;
         case Type::ARRAY: return f(value.array, std::forward<A>(args)...); break;
+        }
+        throw Error("Impossible");
+    }
+
+    template <class R, class F, class ...A>
+    R apply(F f, A&& ...args) && {
+        switch (type) {
+        case Type::NIL: return f(Nil(), std::forward<A>(args)...); break;
+        case Type::BOOLEAN: return f(std::move(value.boolean), std::forward<A>(args)...); break;
+        case Type::NUMBER: return f(std::move(value.number), std::forward<A>(args)...); break;
+        case Type::STRING: return f(std::move(value.string), std::forward<A>(args)...); break;
+        case Type::OBJECT: return f(std::move(value.object), std::forward<A>(args)...); break;
+        case Type::ARRAY: return f(std::move(value.array), std::forward<A>(args)...); break;
         }
         throw Error("Impossible");
     }

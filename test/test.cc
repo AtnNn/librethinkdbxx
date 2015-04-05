@@ -3,7 +3,7 @@
 #include "testlib.h"
 
 void test_json(const char* string, const char* ret = "") {
-    test_eq(R::write_datum(R::read_datum(string)).c_str(), ret[0] ? ret : string);
+    TEST_EQ(R::write_datum(R::read_datum(string)).c_str(), ret[0] ? ret : string);
 }
 
 void test_json_parse_print() {
@@ -25,20 +25,20 @@ void test_json_parse_print() {
 }
 
 void test_reql() {
-    test_eq((R::expr(1) + 2).run(*conn), R::Datum(3));
-    test_eq(R::range(4).count().run(*conn), R::Datum(4));
+    TEST_EQ((R::expr(1) + 2).run(*conn), R::Datum(2));
+    TEST_EQ(R::range(4).count().run(*conn), R::Datum(4));
 }
 
 void test_cursor() {
     R::Cursor cursor = R::range(10000).run_cursor(*conn);
-    test_eq(cursor.next(), 0);
-    R::Array array = cursor.toArray();
-    test_eq(array.size(), 9999);
-    test_eq(*array.begin(), 1);
-    test_eq(*array.rbegin(), 9999);
+    TEST_EQ(cursor.next(), 0);
+    R::Array array = cursor.to_array();
+    TEST_EQ(array.size(), 9999);
+    TEST_EQ(*array.begin(), 1);
+    TEST_EQ(*array.rbegin(), 9999);
     int i = 0;
     R::range(3).run_cursor(*conn).each([&i](R::Datum&& datum){
-            test_eq(datum, i++); });
+            TEST_EQ(datum, i++); });
     
 }
 

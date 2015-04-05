@@ -14,6 +14,7 @@ struct Error {
 
     Error() = default;
     Error(Error&&) = default;
+    Error(const Error&) = default;
 
     Error& operator= (Error&& other) {
         message = std::move(other.message);
