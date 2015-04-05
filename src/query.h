@@ -7,6 +7,8 @@
 
 namespace RethinkDB {
 
+using TT = Protocol::Term::TermType;
+
 class Query;
 class Var;
 
@@ -59,24 +61,50 @@ public:
         datum = Array{ type, std::move(dargs), std::move(oargs) };
     }
 
-#define C0(name, type) Query name() && {                                \
-        return Query(TT::type, std::vector<Query>{ std::move(*this) }); }
-#define C1(name, type) template <class T> Query name(T&& a) && {        \
+    Query copy() const {
+        return *this;
+    }
+
+#define C0(name, type) \
+    Query name() &&      { return Query(TT::type, std::vector<Query>{ std::move(*this) }); } \
+    Query name() const & { return Query(TT::type, std::vector<Query>{ this->copy()     }); }
+#define C1(name, type) \
+    template <class T> \
+    Query name(T&& a) && { return Query(TT::type, std::vector<Query>{ std::move(*this), expr(std::forward<T>(a)) }); } \
+    template <class T> \
+    Query name(T&& a) const & { return Query(TT::type, std::vector<Query>{ this->copy(), expr(std::forward<T>(a)) }); }
+#define C2(name, type)                                                  \
+    template <class T, class U> Query name(T&& a, U&& b) && {           \
         return Query(TT::type, std::vector<Query>{ std::move(*this),    \
-                    expr(std::forward<T>(a)) }); }
-#define C2(name, type) template <class T, class U> Query name(T&& a, U&& b) && { \
-        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+                    expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); } \
+    template <class T, class U> Query name(T&& a, U&& b) const & {      \
+        return Query(TT::type, std::vector<Query>{ this->copy(),        \
                     expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); }
-#define C_(name, type) template <class ...T> Query name(T&& ...a) && {  \
+#define C_(name, type)                                                  \
+    template <class ...T> Query name(T&& ...a) && {                     \
         return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+                    expr(std::forward<T>(a))... }); }                   \
+    template <class ...T> Query name(T&& ...a) const & {                \
+        return Query(TT::type, std::vector<Query>{ this->copy(),        \
                     expr(std::forward<T>(a))... }); }
-#define CO0(name, type) Query name(OptArgs&& optarg) && {                \
-        return Query(TT::type, std::vector<Query>{ std::move(*this) }, std::move(optarg)); }
-#define CO1(name, type) template <class T> Query name(T&& a, OptArgs&& optarg = {}) && { \
+#define CO0(name, type)                                                 \
+    Query name(OptArgs&& optarg = {}) && {                              \
+        return Query(TT::type, std::vector<Query>{ std::move(*this) }, std::move(optarg)); } \
+    Query name(OptArgs&& optarg = {}) const & {                         \
+        return Query(TT::type, std::vector<Query>{ this->copy() }, std::move(optarg)); }
+#define CO1(name, type)                                                 \
+    template <class T> Query name(T&& a, OptArgs&& optarg = {}) && {    \
         return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+                    expr(std::forward<T>(a)) }, std::move(optarg)); }   \
+    template <class T> Query name(T&& a, OptArgs&& optarg = {}) const & { \
+        return Query(TT::type, std::vector<Query>{ this->copy(),        \
                     expr(std::forward<T>(a)) }, std::move(optarg)); }
-#define CO2(name, type) template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) && { \
+#define CO2(name, type)                                                 \
+    template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) && { \
         return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+                    expr(std::forward<T>(a)), expr(std::forward<U>(b)) }, std::move(optarg)); } \
+    template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) const & { \
+        return Query(TT::type, std::vector<Query>{ this->copy(),        \
                     expr(std::forward<T>(a)), expr(std::forward<U>(b)) }, std::move(optarg)); }
 
     CO1(table_create, TABLE_CREATE)
@@ -151,9 +179,6 @@ public:
     C2(delete_at, DELETE_AT)
     C2(change_at, CHANGE_AT)
     C0(keys, KEYS)
-    C0(literal, LITERAL)
-    C1(literal, LITERAL)
-    C_(object, OBJECT)
     C1(match, MATCH)
     C0(split, SPLIT)
     C1(split, SPLIT)
@@ -219,7 +244,7 @@ public:
     C1(intersects, INTERSECTS)
     C1(polygon_sub, POLYGON_SUB)
     C1(config, CONFIG)
-    C1(rebalance, REBALANCE)
+    C0(rebalance, REBALANCE)
     CO0(reconfigure, RECONFIGURE)
     C0(status, STATUS)
     CO0(wait, WAIT) 
@@ -279,7 +304,7 @@ Query expr(T&& a) {
 class Var {
 public:
     Var(int* id_) : id(id_) { }
-    Query operator*() {
+    Query operator*() const {
         Query query(TT::VAR, std::vector<Query>{expr(*id)});
         query.free_vars = {{*id, id}};
         return query;
@@ -317,6 +342,8 @@ Query::Query(std::function<Query(A...)> f) : datum(Nil()) {
 
 #define C0(name) Query name();
 #define C0_IMPL(name, type) Query name() { return Query(TT::type, std::vector<Query>{}); }
+#define CO0(name) Query name(OptArgs&& optargs = {});
+#define CO0_IMPL(name, type) Query name(OptArgs&& optargs) { return Query(TT::type, std::vector<Query>{}, std::move(optargs)); }
 #define C1(name, type) template <class T> Query name(T&& a) { \
         return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)) }); }
 #define C2(name, type) template <class T, class U> Query name(T&& a, U&& b) { \
@@ -336,9 +363,14 @@ Query::Query(std::function<Query(A...)> f) : datum(Nil()) {
 #define C_(name, type) template <class ...T> Query name(T&& ...a) { \
         return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a))... }); }
 #define CO1(name, type) template <class T> Query name(T&& a, OptArgs&& optarg = {}) { \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::move(optarg) }); }
+        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a))}, std::move(optarg)); }
 #define CO2(name, type) template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) { \
         return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::forward<U>(b)}, std::move(optarg)); }
+#define CB(name, type)                                                  \
+    template <class T> Query name(T&& a, Query&& b) {                   \
+        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::move(b) }); } \
+    template <class T> Query name(T&& a, const Query& b) {                   \
+        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), b.copy() }); }
 
 C1(db_create, DB_CREATE)
 C1(db_drop, DB_DROP)
@@ -348,7 +380,6 @@ C1(table_drop, TABLE_DROP)
 C0(table_list)
 C1(db, DB)
 CO1(table, TABLE)
-C0(row)
 C_(add, ADD)
 C2(sub, SUB)
 C_(mul, MUL)
@@ -369,6 +400,7 @@ C4(time, TIME)
 C7(time, TIME)
 C1(epoch_time, EPOCH_TIME)
 CO1(iso8601, ISO8601)
+CO1(js, JAVASCRIPT)
 C1(args, ARGS)
 C3(branch, BRANCH)
 C0(range)
@@ -384,6 +416,27 @@ C1(geojson, GEOJSON)
 C_(line, LINE)
 C2(point, POINT)
 C_(polygon, POLYGON)
+CB(operator+, ADD)
+CB(operator-, SUB)
+CB(operator*, MUL)
+CB(operator/, DIV)
+CB(operator%, MOD)
+CB(operator&&, AND)
+CB(operator||, OR)
+CB(operator==, EQ)
+CB(operator!=, NE)
+CB(operator>, GT)
+CB(operator>=, GE)
+CB(operator<, LT)
+CB(operator<=, LE)
+C_(object, OBJECT)
+C_(array, MAKE_ARRAY)
+C1(desc, DESC)
+C1(asc, ASC)
+C0(literal)
+C1(literal, LITERAL)
+CO0(wait)
+C0(rebalance, REBALANCE)
 
 #undef C0
 #undef C1
@@ -398,6 +451,14 @@ C_(polygon, POLYGON)
 template <class R, class ...T>
 Query do_(R&& a, T&& ...b) {
     return expr(std::forward<R>(a)).do_(std::forward<T>(b)...);
+}
+
+extern Query row;
+extern Query maxval;
+extern Query minval;
+
+Query binary(const std::string& data) {
+    return expr(Binary(data));
 }
 
 }

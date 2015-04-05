@@ -1,8 +1,8 @@
 CXX = clang++
 CXXFLAGS = -std=c++11 -g -I'build/gen' -Wall -pthread
 
-modules = net datum json query cursor
-headers = error stream datum json net cursor query
+modules = net datum json query cursor types utils
+headers = utils error stream types datum json net cursor query
 
 o_files = $(patsubst %, build/obj/%.o, $(modules))
 d_files = $(patsubst %, build/dep/%.d, $(modules))

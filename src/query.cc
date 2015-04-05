@@ -6,6 +6,8 @@
 
 namespace RethinkDB {
 
+using TT = Protocol::Term::TermType;
+
 Datum datum_to_query_t::operator() (const Array& array) {
     Array copy;
     copy.reserve(array.size());
@@ -164,11 +166,16 @@ int gen_var_id() {
 
 C0_IMPL(db_list, DB_LIST)
 C0_IMPL(table_list, TABLE_LIST)
-C0_IMPL(row, IMPLICIT_VAR)
 C0_IMPL(random, RANDOM)
 C0_IMPL(now, NOW)
 C0_IMPL(range, RANGE)
 C0_IMPL(error, ERROR)
 C0_IMPL(uuid, UUID)
+C0_IMPL(literal, LITERAL)
+CO0_IMPL(wait, WAIT)
+
+Query row(TT::IMPLICIT_VAR, {});
+Query minval(TT::MAXVAL, {});
+Query maxval(TT::MINVAL, {});
 
 }

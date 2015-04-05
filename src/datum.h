@@ -7,23 +7,9 @@
 
 #include "protocol_defs.h"
 #include "error.h"
+#include "types.h"
 
 namespace RethinkDB {
-
-using TT = Protocol::Term::TermType;
-
-class Datum;
-
-class Nil { };
-
-class Time;
-class Point;
-class Line;
-class Polygon;
-class Binary;
-
-using Array = std::vector<Datum>;
-using Object = std::map<std::string, Datum>;
 
 class Datum {
 public:
@@ -32,10 +18,17 @@ public:
     Datum(double number_) : type(Type::NUMBER), value(number_) { }
     Datum(const std::string& string_) : type(Type::STRING), value(string_) { }
     Datum(std::string&& string_) : type(Type::STRING), value(std::move(string_)) { }
-    Datum(const Object& object_) : type(Type::OBJECT), value(object_) { }
-    Datum(Object&& object_) : type(Type::OBJECT), value(std::move(object_)) { }
     Datum(const Array& array_) : type(Type::ARRAY), value(array_) { }
     Datum(Array&& array_) : type(Type::ARRAY), value(std::move(array_)) { }
+    Datum(const Binary& binary) : type(Type::BINARY), value(binary) { }
+    Datum(Binary&& binary) : type(Type::BINARY), value(std::move(binary)) { }
+
+    Datum(const Object& object_) : type(Type::OBJECT), value(object_) {
+        convert_pseudo_type();
+    }
+    Datum(Object&& object_) : type(Type::OBJECT), value(std::move(object_)) {
+        convert_pseudo_type();
+    }
 
     Datum(const Datum& other) : type(other.type), value(other.type, other.value) { }
     Datum(Datum&& other) : type(other.type), value(other.type, std::move(other.value)) { }
@@ -55,7 +48,7 @@ public:
     }
 
     Datum(int number_) : Datum(static_cast<double>(number_)) { }
-    Datum(TT type) : Datum(static_cast<double>(type)) { }
+    Datum(Protocol::Term::TermType type) : Datum(static_cast<double>(type)) { }
     Datum(const char* string) : Datum(static_cast<std::string>(string)) { }
 
 
@@ -100,6 +93,7 @@ public:
         case Type::STRING: return f(value.string, std::forward<A>(args)...); break;
         case Type::OBJECT: return f(value.object, std::forward<A>(args)...); break;
         case Type::ARRAY: return f(value.array, std::forward<A>(args)...); break;
+        case Type::BINARY: return f(value.binary, std::forward<A>(args)...); break;
         }
         throw Error("Impossible");
     }
@@ -113,6 +107,7 @@ public:
         case Type::STRING: return f(std::move(value.string), std::forward<A>(args)...); break;
         case Type::OBJECT: return f(std::move(value.object), std::forward<A>(args)...); break;
         case Type::ARRAY: return f(std::move(value.array), std::forward<A>(args)...); break;
+        case Type::BINARY: return f(std::move(value.binary), std::forward<A>(args)...); break;
         }
         throw Error("Impossible");
     }
@@ -126,6 +121,7 @@ public:
     Datum* get_field(std::string);
     Array* get_array();
     Datum* get_nth(size_t);
+    Binary* get_binary();
 
     bool& extract_boolean();
     double& extract_number();
@@ -134,14 +130,19 @@ public:
     Datum& extract_field(std::string);
     Array& extract_array();
     Datum& extract_nth(size_t);
+    Binary& extract_binary();
 
     int compare(const Datum&) const;
     bool operator== (const Datum&);
 
+    Datum to_raw();
+
 private:
+    void convert_pseudo_type();
+
     enum class Type {
-        ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, STRING,
-        // TIME, POINT, LINE, POLYGON, BINARY
+        ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, BINARY, STRING
+        // TIME, POINT, LINE, POLYGON
     };
     Type type;
 
@@ -151,6 +152,7 @@ private:
         std::string string;
         Object object;
         Array array;
+        Binary binary;
 
         datum_value() { }
         datum_value(bool boolean_) : boolean(boolean_) { }
@@ -161,6 +163,8 @@ private:
         datum_value(Object&& object_) : object(std::move(object_)) { }
         datum_value(const Array& array_) : array(array_) { }
         datum_value(Array&& array_) : array(std::move(array_)) { }
+        datum_value(const Binary& binary_) : binary(binary_) { }
+        datum_value(Binary&& binary_) : binary(std::move(binary_)) { }
 
         datum_value(Type type, const datum_value& other){
             set(type, other);
@@ -170,7 +174,7 @@ private:
             set(type, std::move(other));
         }
 
-        void set(Type type, datum_value&& other){
+        void set(Type type, datum_value&& other) {
             switch(type){
             case Type::NIL: break;
             case Type::BOOLEAN: new (this) bool(other.boolean); break;
@@ -178,10 +182,11 @@ private:
             case Type::STRING: new (this) std::string(std::move(other.string)); break;
             case Type::OBJECT: new (this) Object(std::move(other.object)); break;
             case Type::ARRAY: new (this) Array(std::move(other.array)); break;
+            case Type::BINARY: new (this) Binary(std::move(other.binary)); break;
             }
         }
 
-        void set(Type type, const datum_value& other){
+        void set(Type type, const datum_value& other) {
             switch(type){
             case Type::NIL: break;
             case Type::BOOLEAN: new (this) bool(other.boolean); break;
@@ -189,6 +194,7 @@ private:
             case Type::STRING: new (this) std::string(other.string); break;
             case Type::OBJECT: new (this) Object(other.object); break;
             case Type::ARRAY: new (this) Array(other.array); break;
+            case Type::BINARY: new (this) Binary(other.binary); break;
             }
         }
 
@@ -200,11 +206,13 @@ private:
             case Type::STRING: { typedef std::string str; string.~str(); } break;
             case Type::OBJECT: object.~Object(); break;
             case Type::ARRAY: array.~Array(); break;
+            case Type::BINARY: binary.~Binary(); break;
             } 
         }
 
         ~datum_value() { }
     };
+
     datum_value value;
 };
 

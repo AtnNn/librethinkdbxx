@@ -1,8 +1,11 @@
 #include "datum.h"
 #include "error.h"
 #include "json.h"
+#include "utils.h"
 
 namespace RethinkDB {
+
+using TT = Protocol::Term::TermType;
 
 bool Datum::is_nil() {
     return type == Type::NIL;
@@ -69,6 +72,14 @@ Array* Datum::get_array() {
     }
 }
 
+Binary* Datum::get_binary() {
+    if (type == Type::BINARY) {
+        return &value.binary;
+    } else {
+        return NULL;
+    }
+}
+
 bool& Datum::extract_boolean() {
     if (type != Type::BOOLEAN) {
         throw Error("extract_bool: Not a boolean");
@@ -125,6 +136,13 @@ Array& Datum::extract_array() {
     return value.array;
 }
 
+Binary& Datum::extract_binary() {
+    if (type != Type::BINARY) {
+        throw Error("get_binary: Not a binary");
+    }
+    return value.binary;
+}
+
 int Datum::compare(const Datum& other) const {
 #define COMPARE(a, b) do {          \
     if (a < b) { return -1; }       \
@@ -139,6 +157,10 @@ int Datum::compare(const Datum& other) const {
     case Type::NUMBER: COMPARE_OTHER(value.number); break;
     case Type::STRING:
         c = value.string.compare(other.value.string);
+        COMPARE(c, 0);
+        break;
+    case Type::BINARY:
+        c = value.binary.data.compare(other.value.binary.data);
         COMPARE(c, 0);
         break;
     case Type::ARRAY:
@@ -167,6 +189,32 @@ int Datum::compare(const Datum& other) const {
 
 bool Datum::operator== (const Datum& other) {
     return compare(other) == 0;
+}
+
+void Datum::convert_pseudo_type() {
+    Datum* type_field = get_field("$reql_type$");
+    if (!type_field) return;
+    std::string* type = type_field->get_string();
+    if (!type) return;
+    if (!strcmp(type->c_str(), "BINARY")) {
+        Datum* data_field = get_field("data");
+        if (!data_field) return;
+        std::string* encoded_data = data_field->get_string();
+        if (!encoded_data) return;
+        Binary binary("");
+        if (base64_decode(*encoded_data, binary.data)) {
+            *this = std::move(binary);
+        }
+    }
+}
+
+Datum Datum::to_raw() {
+    if (type == Type::BINARY) {
+        return Object{
+            {"$reql_type$", "BINARY"},
+            {"data", base64_encode(value.binary.data)}};
+    }
+    return *this;
 }
 
 }

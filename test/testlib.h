@@ -74,6 +74,68 @@ void exit_section() {
         catch (const R::Error& error) { test_eq(#code, error, (expected)); } \
     } while (0)
 
-R::Error err(const char* type, const char* message, R::Datum backtrace) {
-    return R::Error(message);
+struct err {
+    err(const char* type_, const char* message_, R::Array&& backtrace_ = {}) :
+        type(type_), message(message_), backtrace(std::move(backtrace_)) { }
+    std::string type;
+    std::string message;
+    R::Array backtrace;
+};
+
+struct err_regex {
+    err_regex(const char* type_, const char* message_, R::Array&& backtrace_) :
+        type(type_), message(message_), backtrace(std::move(backtrace_)) { }
+    std::string type;
+    std::string message;
+    R::Array backtrace;
+};
+
+R::Object partial(R::Object&& object) {
+    object.emplace("<PARTIAL>", true);
+    return object;
 }
+
+R::Datum uuid() {
+    return "<UUID>";
+}
+
+R::Datum arrlen(int n, R::Datum&& datum) {
+    R::Array array;
+    for (int i = 0; i < n; ++i) {
+        array.emplace_back(std::move(datum));
+    }
+    return array;
+}
+
+R::Query new_table() {
+    char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    char name[10];
+    for (unsigned int i = 0; i + 1 < sizeof name; ++i) {
+        name[i] = chars[random() % sizeof chars];
+    }
+    name[9] = 0;
+    R::table_create(name).run(*conn);
+    return R::expr(name);
+}
+
+std::string repeat(std::string&& s, int n) {
+    std::string string;
+    string.reserve(n * s.size());
+    for (int i = 0; i < n; ++i) {
+        string.append(s);
+    }
+    return string;
+}
+
+R::Query fetch(R::Cursor& cursor, int count) {
+    R::Array array;
+    for (int i = 0; i < count; ++i) {
+        array.emplace_back(cursor.next());
+    }
+    return expr(std::move(array));
+}
+
+struct bag {
+    bag(R::Array array_) : array(array_) {}
+    R::Array array;
+};
