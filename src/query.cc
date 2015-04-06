@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <set>
 
 #include "query.h"
 #include "stream.h"
@@ -238,19 +239,25 @@ Query Query::func_wrap(const Query& query) {
 }
 
 Query Query::make_object(std::vector<Query>&& args) {
+    if (args.size() % 2 != 0) {
+        return Query(TT::OBJECT, std::move(args));
+    }
+    std::set<std::string> keys;
+    for (auto it = args.begin(); it != args.end() && it + 1 != args.end(); it += 2) {
+        std::string* key = it->datum.get_string();
+        if (!key || keys.count(*key)) {
+            return Query(TT::OBJECT, std::move(args));
+        }
+        keys.insert(*key);
+    }
     Query ret{Nil()};
     Object object;
-    for (auto it = args.begin(); ; it += 2) {
-        if (it == args.end()) {
-            ret.datum = std::move(object);
-            return ret;
-        }
-        if (it + 1 == args.end()) break;
+    for (auto it = args.begin(); it != args.end(); it += 2) {
         std::string* key = it->datum.get_string();
-        if (!key) break;
         object.emplace(std::move(*key), ret.alpha_rename(std::move(*(it + 1))));
     }
-    return Query(TT::OBJECT, std::move(args));
+    ret.datum = std::move(object);
+    return ret;
 }
 
 }
