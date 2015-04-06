@@ -303,19 +303,29 @@ void Connection::WriteLock::send_query(uint64_t token, const std::string& query)
 }
 
 Error Response::as_error() {
-    std::string repr = write_datum(Datum(result));
+    std::string repr;
+    if (result.size() == 1) {
+        std::string* string = result[0].get_string();
+        if (string) {
+            repr = *string;
+        } else {
+            repr = write_datum(result[0]);
+        }
+    } else {
+        repr = write_datum(Datum(result));
+    }
     std::string err;
     using RT = Protocol::Response::ResponseType;
     switch (type) {
-    case RT::SUCCESS_SEQUENCE: err = "SUCCESS_SEQUENCE"; break;
-    case RT::SUCCESS_PARTIAL:  err = "SUCCESS_PARTIAL"; break;
-    case RT::SUCCESS_ATOM: err = "SUCCESS_ATOM"; break;
-    case RT::WAIT_COMPLETE: err = "WAIT_COMPLETE"; break;
-    case RT::CLIENT_ERROR: err = "CLIENT_ERROR"; break;
-    case RT::COMPILE_ERROR: err = "COMPILE_ERROR"; break;
-    case RT::RUNTIME_ERROR: err = "RUNTIME_ERROR"; break;
+    case RT::SUCCESS_SEQUENCE: err = "unexpected response: SUCCESS_SEQUENCE"; break;
+    case RT::SUCCESS_PARTIAL:  err = "unexpected response: SUCCESS_PARTIAL"; break;
+    case RT::SUCCESS_ATOM: err = "unexpected response: SUCCESS_ATOM"; break;
+    case RT::WAIT_COMPLETE: err = "unexpected response: WAIT_COMPLETE"; break;
+    case RT::CLIENT_ERROR: err = "client error"; break;
+    case RT::COMPILE_ERROR: err = "compile error"; break;
+    case RT::RUNTIME_ERROR: err = "runtime error"; break;
     }
-    throw Error("Unexpected response: %s: %s", err.c_str(), repr.c_str());
+    throw Error("%s: %s", err.c_str(), repr.c_str());
 }
 
 Protocol::Response::ResponseType response_type(double t) {

@@ -394,6 +394,7 @@ void Query::set_function(F f) {
         return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::move(b) }); } \
     template <class T> Query name(T&& a, const Query& b) {                   \
         return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), b.copy() }); }
+#define func_wrap Query::func_wrap
 
 C1(db_create, DB_CREATE, no_wrap)
 C1(db_drop, DB_DROP, no_wrap)
@@ -457,6 +458,7 @@ C0(rebalance)
 #undef C_
 #undef CO1
 #undef CO2
+#undef func_wrap
 
 template <class R, class ...T>
 Query do_(R&& a, T&& ...b) {

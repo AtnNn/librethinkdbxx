@@ -76,6 +76,14 @@ void exit_section();
 struct err {
     err(const char* type_, const char* message_, R::Array&& backtrace_ = {}) :
         type(type_), message(message_), backtrace(std::move(backtrace_)) { }
+
+    std::string convert_type() const {
+        if (type == "RqlRuntimeError") {
+            return "runtime error";
+        }
+        return type;
+    }
+
     std::string type;
     std::string message;
     R::Array backtrace;

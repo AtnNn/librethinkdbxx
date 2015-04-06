@@ -49,11 +49,11 @@ void exit_section() {
 }
 
 std::string to_string(const err& error) {
-    return "err(" + error.type + ", " +  error.message + ")";
+    return "error(" + error.type + ", " +  error.message + ")";
 }
 
 bool equal(const R::Error& a, const err& b) {
-    return a.message == b.message;
+    return a.message == (b.convert_type() + ": " + b.message);
 }
 
 bool match(const char* pattern, const char* string) {
