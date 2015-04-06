@@ -63,7 +63,6 @@ bool base64_decode(const std::string& in, std::string& out) {
     out.clear();
     out.reserve(in.size() * 3 / 4);
     auto read = in.begin();
-    auto write = out.begin();
     int invalid = 0;
     while (true) {
         int c[4];
@@ -76,6 +75,7 @@ bool base64_decode(const std::string& in, std::string& out) {
                     i = 3;
                     break;
                 } else if (base64_decode(*read, &c[i])) {
+                    ++read;
                     break;
                 } else {
                     ++invalid;
@@ -85,9 +85,9 @@ bool base64_decode(const std::string& in, std::string& out) {
         } 
         if (end == 1) return false;
         int val = c[0] << 18 | c[1] << 12 | c[2] << 6 | c[3];
-        if (end > 1) *write++ = val >> 16;
-        if (end > 2) *write++ = val >> 8 & 0xFF;
-        if (end > 3) *write++ = val & 0xFF;
+        if (end > 1) out.append(1, val >> 16);
+        if (end > 2) out.append(1, val >> 8 & 0xFF);
+        if (end > 3) out.append(1, val & 0xFF);
         if (end != 4) break;
     }
     if (in.size() / invalid < 30) {
@@ -112,30 +112,29 @@ char base64_encode(int c) {
     }
 }
 
-void base64_encode(int* c, int n, std::string::iterator& write) {
+void base64_encode(int* c, int n, std::string& out) {
     if (n == 0) {
         return;
     }
     int v = c[0] << 16 | c[1] << 8 | c[2];
-    *write++ = base64_encode(v >> 18);
-    *write++ = base64_encode(v >> 12 & 0x3F);
+    out.append(1, base64_encode(v >> 18));
+    out.append(1, base64_encode(v >> 12 & 0x3F));
     if (n == 1) {
-        *write++ = '=';
-        *write++ = '=';
+        out.append("==");
         return;
     }
-    *write++ = base64_encode(v >> 6 & 0x3F);
+    out.append(1, base64_encode(v >> 6 & 0x3F));
     if (n == 2) {
-        *write++ = '=';
+        out.append("=");
         return;
     }
-    *write++ = base64_encode(v & 0x3F);
+    out.append(1, base64_encode(v & 0x3F));
 }
 
 std::string base64_encode(const std::string& in) {
     std::string out;
+    out.reserve(in.size() * 4 / 3 + in.size() / 48 + 3);
     auto read = in.begin();
-    auto write = out.begin();
     while (true) {
         for (int group = 0; group < 16; ++group) {
             int c[3];
@@ -148,12 +147,12 @@ std::string base64_encode(const std::string& in) {
                     c[i] = *read++;
                 }
             }
-            base64_encode(c, i, write);
+            base64_encode(c, i, out);
             if (i != 4) {
                 return out;
             }
         }
-        *write++ = '\n';
+        out.append("\n");
     }
 }
 

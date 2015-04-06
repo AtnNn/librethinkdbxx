@@ -75,8 +75,7 @@ std::string to_string(const err_regex& error) {
 }
 
 R::Object partial(R::Object&& object) {
-    object.emplace("<PARTIAL>", true);
-    return object;
+    return R::Object{{"special", "partial"}, {"partial", std::move(object)}};
 }
 
 R::Datum uuid() {
@@ -134,26 +133,70 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             for (R::Datum it : *data) {
                 object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1)); 
             }
-            return expected == object;
+            return equal(object, expected);
         }
     }
-    if (expected.get_object() && expected.get_field("special")) {
+    do {
+        if (!expected.get_object()) break;
+        if(!expected.get_field("special")) break;
         const std::string* type = expected.get_field("special")->get_string();
         if (*type == "bag") {
             const R::Datum* bag_datum = expected.get_field("bag");
-            if (bag_datum && bag_datum->get_array()) {
-                R::Array bag = *bag_datum->get_array();
-                const R::Array* array = got.get_array();
-                if (!array) return false;
-                if (bag.size() != array->size()) return false;
-                for (const auto& it : *array) {
-                    auto ref = std::find(bag.begin(), bag.end(), it);
-                    if (ref == bag.end()) return false;
-                    bag.erase(ref);
+            if (!bag_datum || !bag_datum->get_array()) break;
+            R::Array bag = *bag_datum->get_array();
+            const R::Array* array = got.get_array();
+            if (!array) return false;
+            if (bag.size() != array->size()) return false;
+            for (const auto& it : *array) {
+                auto ref = std::find(bag.begin(), bag.end(), it);
+                if (ref == bag.end()) return false;
+                bag.erase(ref);
+            }
+            return true;
+        } else if (*type == "arrlen") {
+            const R::Datum* len_datum = expected.get_field("len");
+            if (!len_datum) break;
+            const double *len = len_datum->get_number();
+            if (!len) break;
+            const R::Array* array = got.get_array();
+            if (!array) break;
+            return array->size() == *len;
+        } else if (*type == "partial") {
+            const R::Datum* partial_datum = expected.get_field("partial");
+            if (!partial_datum) break;
+            const R::Object* partial = partial_datum->get_object();
+            if (!partial) break;
+            const R::Object* object = got.get_object();
+            if (!object) break;
+            for (const auto& it : *partial) {
+                if (!object->count(it.first) || !((*object).at(it.first) == it.second)) {
+                    return false;
                 }
                 return true;
-            } 
+            }
         }
+    } while(0);
+    const R::Object* got_object = got.get_object();
+    const R::Object* expected_object = expected.get_object();
+    if (got_object && expected_object) {
+        if (got_object->size() != expected_object->size()) return false;
+        for (const auto& it : *got_object) {
+            auto other = expected_object->find(it.first);
+            if (other == expected_object->end()) return false;
+            if (!equal(it.second, other->second)) return false;
+        }
+        return true;
+    }
+    const R::Array* got_array = got.get_array();
+    const R::Array* expected_array = expected.get_array();
+    if (got_array && expected_array) {
+        if (got_array->size() != expected_array->size()) return false;
+        for (R::Array::const_iterator i = got_array->begin(), j = expected_array->begin();
+             i < got_array->end();
+             i++, j++) {
+            if(!equal(*i, *j)) return false;
+        }
+        return true;
     }
     return got == expected;
 }
