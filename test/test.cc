@@ -67,7 +67,6 @@ int main() {
     srand(time(NULL));
     try {
         conn = R::connect();
-        R::db("rethinkdb").table("_debug_scratch").delete_().run(*conn);
     } catch(const R::Error& error) {
         printf("FAILURE: could not connect to localhost:28015: %s\n", error.message.c_str());
         return 1;

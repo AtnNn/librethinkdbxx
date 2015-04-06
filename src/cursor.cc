@@ -3,15 +3,17 @@
 namespace RethinkDB {
 
 Cursor::Cursor(Token&& token_) : token(std::move(token_)) {
-    token.ask_for_more();
     add_response(token.wait_for_response());
+    if (!no_more) {
+        token.ask_for_more();
+    }
 }
 
 Cursor::Cursor(Token&& token_, Response&& response) : token(std::move(token_)) {
-    if (response.type == Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
+    add_response(std::move(response));
+    if (!no_more) {
         token.ask_for_more();
     }
-    add_response(std::move(response));
 }
 
 Cursor::~Cursor() {

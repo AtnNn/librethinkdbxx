@@ -15,6 +15,8 @@ extern int count;
 extern std::unique_ptr<R::Connection> conn;
 extern int verbosity;
 
+const char* indent();
+
 std::string to_string(const char*);
 std::string to_string(const R::Datum&);
 
@@ -49,31 +51,30 @@ template <class T, class U>
 void test_eq(const char* code, T&& val, U&& expected) {
     count ++;
     if (!equal(val, expected)) {
-        const char spaces[] = "                           ";
         failed++;
-        const char* indent = spaces + sizeof(spaces) - 1;
         for (auto& it : section) {
             if (it.second) {
-                printf("%sSection: %s\n", indent, it.first);
+                printf("%sSection: %s\n", indent(), it.first);
                 it.second = false;
             }
-            indent -= 2;
         }
         printf("%sFAILURE: in `%s':\n%s  Expected: `%s'\n%s   but got: `%s'\n",
-               indent, code,
-               indent, to_string(expected).c_str(),
-               indent, to_string(val).c_str());
+               indent(), code,
+               indent(), to_string(expected).c_str(),
+               indent(), to_string(val).c_str());
     }
 }
 
 void enter_section(const char* name);
 void exit_section();
 
+#define TEST_DO(code)                                                   \
+    if (verbosity > 1) fprintf(stderr, "%sTEST: %s\n", indent(), #code); \
+    code
+
 #define TEST_EQ(code, expected) \
     do {                                                                \
-        const char spaces[] = "                           ";            \
-        const char* indent = spaces + sizeof(spaces) - 1 - 2 * section.size(); \
-        if (verbosity > 1) fprintf(stderr, "%sTEST: %s\n", indent, #code); \
+        if (verbosity > 1) fprintf(stderr, "%sTEST: %s\n", indent(), #code); \
         try { test_eq(#code, (code), (expected)); }                     \
         catch (const R::Error& error) { test_eq(#code, error, (expected)); } \
     } while (0)
@@ -164,3 +165,5 @@ struct temp_table {
 };
 
 bool equal(const R::Datum& got, const R::Object& expected);
+
+void clean_slate();

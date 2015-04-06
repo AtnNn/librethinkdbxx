@@ -2,10 +2,11 @@
 
 #include "testlib.h"
 
+int verbosity = 1;
+
 int failed = 0;
 int count = 0;
 std::vector<std::pair<const char*, bool>> section;
-int verbosity = 1;
 
 std::unique_ptr<R::Connection> conn;
 
@@ -44,12 +45,10 @@ bool equal(const R::Error &a, const R::Error& b) {
 bool equal(const char* a, const char* b);
 
 void enter_section(const char* name) {
-    if (verbosity > 1) {
+    if (verbosity == 0) {
         section.emplace_back(name, true);
     } else {
-        char spaces[] = "                             ";
-        char* indent = spaces + sizeof spaces - section.size() * 2;
-        printf("%sSection %s\n", indent, name);
+        printf("%sSection %s\n", indent(), name);
         section.emplace_back(name, false);
     }
 }
@@ -174,15 +173,35 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             if (!array) break;
             return array->size() == *len;
         } else if (*type == "partial") {
-            const R::Datum* partial_datum = expected.get_field("partial");
-            if (!partial_datum) break;
-            const R::Object* partial = partial_datum->get_object();
-            if (!partial) break;
             const R::Object* object = got.get_object();
-            if (!object) break;
-            for (const auto& it : *partial) {
-                if (!object->count(it.first) || !((*object).at(it.first) == it.second)) {
-                    return false;
+            if (object) {
+                const R::Datum* partial_datum = expected.get_field("partial");
+                if (!partial_datum) break;
+                const R::Object* partial = partial_datum->get_object();
+                if (!partial) break;
+                for (const auto& it : *partial) {
+                    if (!object->count(it.first) || !equal((*object).at(it.first), it.second)) {
+                        return false;
+                    }
+                    return true;
+                }
+            }
+            const R::Array* array = got.get_array();
+            if (array) {
+                const R::Datum* partial_datum = expected.get_field("partial");
+                if (!partial_datum) break;
+                const R::Array* partial = partial_datum->get_array();
+                if (!partial) break;
+                
+                for (const auto& want : *partial) {
+                    bool match = false;
+                    for (const auto& have : *array) {
+                        if (equal(have, want)) {
+                            match = true;
+                            break;
+                        }
+                    }
+                    if (match == false) return false;
                 }
                 return true;
             }
@@ -215,4 +234,13 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
 
 R::Object partial(R::Array&& array) {
     return R::Object{{"special", "partial"}, {"partial", std::move(array)}};   
+}
+
+void clean_slate() {
+    R::db("rethinkdb").table("_debug_scratch").delete_().run(*conn);
+}
+
+const char* indent() {
+    static const char spaces[] = "                                       ";
+    return spaces + sizeof(spaces) - 1 - 2 * section.size();
 }
