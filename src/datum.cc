@@ -240,7 +240,7 @@ int Datum::compare(const Datum& other) const {
         }
         break;
     case Type::OBJECT:
-        COMPARE_OTHER(value.array.size());
+        COMPARE_OTHER(value.object.size());
         for (Object::const_iterator l = value.object.begin(),
                  r = other.value.object.begin();
              l != value.object.end();

@@ -47,7 +47,10 @@ public:
         return *this;
     }
 
-    Datum(int number_) : Datum(static_cast<double>(number_)) { }
+    Datum(uint32_t number_) : Datum(static_cast<double>(number_)) { }
+    Datum(uint64_t number_) : Datum(static_cast<double>(number_)) { }
+    Datum(int32_t number_) : Datum(static_cast<double>(number_)) { }
+    Datum(int64_t number_) : Datum(static_cast<double>(number_)) { }
     Datum(Protocol::Term::TermType type) : Datum(static_cast<double>(type)) { }
     Datum(const char* string) : Datum(static_cast<std::string>(string)) { }
 

@@ -28,11 +28,6 @@ std::string to_string(const R::Object& object);
 std::string to_string(const R::Array& array);
 std::string to_string(const R::Nil& nil);
 
-template <class T, class U>
-bool equal(T a, U b) {
-    return a == b;
-}
-
 bool equal(const R::Datum& a, const R::Datum& b);
 
 template <class T>
@@ -146,3 +141,5 @@ struct temp_table {
     R::Query table() { return R::table(name); }
     std::string name;
 };
+
+bool equal(const R::Datum& got, const R::Object& expected);
