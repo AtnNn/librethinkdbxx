@@ -67,6 +67,7 @@ int main() {
     if (!failed) {
         printf("SUCCESS: All %d tests passed\n", count);
     } else {
+        printf("DONE: All %d of %d tests failed\n", failed, count);
         return 1;
     }
 }

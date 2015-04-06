@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "testlib.h"
 
 int failed = 0;
@@ -49,15 +51,19 @@ void exit_section() {
 }
 
 std::string to_string(const err& error) {
-    return "error(" + error.type + ", " +  error.message + ")";
+    return "Error(\"" + error.convert_type() + ": " +  error.message + "\")";
 }
 
 bool equal(const R::Error& a, const err& b) {
-    return a.message == (b.convert_type() + ": " + b.message);
+    return b.trim_message(a.message) == (b.convert_type() + ": " + b.message);
 }
 
 bool match(const char* pattern, const char* string) {
-    return *R::expr(string).match(pattern).coerce_to("bool").run(*conn).get_boolean();
+    try {
+        return !R::expr(string).match(pattern).run(*conn).is_nil();
+    } catch (const R::Error&) {
+        return false;
+    }
 }
 
 bool equal(const R::Error& a, const err_regex& b) {
@@ -129,6 +135,24 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
                 object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1)); 
             }
             return expected == object;
+        }
+    }
+    if (expected.get_object() && expected.get_field("special")) {
+        const std::string* type = expected.get_field("special")->get_string();
+        if (*type == "bag") {
+            const R::Datum* bag_datum = expected.get_field("bag");
+            if (bag_datum && bag_datum->get_array()) {
+                R::Array bag = *bag_datum->get_array();
+                const R::Array* array = got.get_array();
+                if (!array) return false;
+                if (bag.size() != array->size()) return false;
+                for (const auto& it : *array) {
+                    auto ref = std::find(bag.begin(), bag.end(), it);
+                    if (ref == bag.end()) return false;
+                    bag.erase(ref);
+                }
+                return true;
+            } 
         }
     }
     return got == expected;

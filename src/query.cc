@@ -181,8 +181,8 @@ CO0_IMPL(wait, WAIT)
 C0_IMPL(rebalance, REBALANCE)
 
 Query row(TT::IMPLICIT_VAR, {});
-Query minval(TT::MAXVAL, {});
-Query maxval(TT::MINVAL, {});
+Query minval(TT::MINVAL, {});
+Query maxval(TT::MAXVAL, {});
 
 Query binary(const std::string& data) {
     return expr(Binary(data));

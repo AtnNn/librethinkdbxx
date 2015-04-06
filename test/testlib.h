@@ -48,7 +48,7 @@ void test_eq(const char* code, T&& val, U&& expected) {
     count ++;
     if (!equal(val, expected)) {
         const char spaces[] = "                           ";
-        failed = true;
+        failed++;
         const char* indent = spaces + sizeof(spaces) - 1;
         for (auto& it : section) {
             if (it.second) {
@@ -82,6 +82,14 @@ struct err {
             return "runtime error";
         }
         return type;
+    }
+
+    static std::string trim_message(std::string msg) {
+        int i = msg.find(":\n");
+        if (i != std::string::npos) {
+            return msg.substr(0, i) + ".";
+        }
+        return msg;
     }
 
     std::string type;
