@@ -19,7 +19,7 @@ bool equal(const char* a, const char* b) {
 }
 
 std::string to_string(const R::Error& error) {
-    return "Error<" + error.message + ">";
+    return "Error(\"" + error.message + "\")";
 }
 
 std::string to_string(const R::Object& object) {

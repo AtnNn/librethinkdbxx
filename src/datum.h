@@ -98,7 +98,7 @@ public:
         case Type::ARRAY: return f(value.array, std::forward<A>(args)...); break;
         case Type::BINARY: return f(value.binary, std::forward<A>(args)...); break;
         }
-        throw Error("Impossible");
+        throw Error("internal error: no such datum type %d", static_cast<int>(type));
     }
 
     template <class R, class F, class ...A>
@@ -112,7 +112,7 @@ public:
         case Type::ARRAY: return f(std::move(value.array), std::forward<A>(args)...); break;
         case Type::BINARY: return f(std::move(value.binary), std::forward<A>(args)...); break;
         }
-        throw Error("Impossible");
+        throw Error("internal error: no such datum type %d", static_cast<int>(type));
     }
 
     bool is_nil() const;

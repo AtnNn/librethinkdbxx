@@ -57,11 +57,10 @@ void test_eq(const char* code, T&& val, U&& expected) {
             }
             indent -= 2;
         }
-        printf("%sFAILURE: Expected `%s' but got `%s' in `%s'\n",
-               indent,
-               to_string(expected).c_str(),
-               to_string(val).c_str(),
-               code);
+        printf("%sFAILURE: in `%s':\n%s  Expected: `%s'\n%s   but got: `%s'\n",
+               indent, code,
+               indent, to_string(expected).c_str(),
+               indent, to_string(val).c_str());
     }
 }
 

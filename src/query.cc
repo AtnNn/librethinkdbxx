@@ -61,7 +61,7 @@ Datum Query::run(Connection& conn) {
     case RT::RUNTIME_ERROR:
         throw response.as_error();
     }
-    throw Error("Impossible");
+    throw Error("internal error: no such response type %d", static_cast<int>(response.type));
 }
 
 Query::Query(Query&& orig, OptArgs&& new_optargs) : datum(Nil()) {
@@ -186,6 +186,54 @@ Query maxval(TT::MINVAL, {});
 
 Query binary(const std::string& data) {
     return expr(Binary(data));
+}
+
+struct {
+    bool operator() (const Object& object) {
+        for (const auto& it : object) {
+            if (it.second.apply<bool>(*this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    bool operator() (const Array& array) {
+        int type = *array[0].get_number();
+        if (type == static_cast<int>(TT::IMPLICIT_VAR)) {
+            return true;
+        }
+        if (type == static_cast<int>(TT::FUNC)) {
+            return false;
+        }
+        for (const auto& it : *array[1].get_array()) {
+            if (it.apply<bool>(*this)) {
+                return true;
+            }
+        }
+        if (array.size() == 3) {
+            return array[2].apply<bool>(*this);
+        } else {
+            return false;
+        }
+    }
+    template <class T>
+    bool operator() (T) {
+        return false;
+    }
+} needs_func_wrap;
+
+Query Query::func_wrap(Query&& query) {
+    if (query.datum.apply<bool>(needs_func_wrap)) {
+        return Query(TT::FUNC, {expr(Array{new_var_id(query.free_vars)}), std::move(query)});
+    }
+    return query;
+}
+
+Query Query::func_wrap(const Query& query) {
+    if (query.datum.apply<bool>(needs_func_wrap)) {
+        return Query(TT::FUNC, {expr(Array{new_var_id(query.free_vars)}), query.copy()});
+    }
+    return query;
 }
 
 }
