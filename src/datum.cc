@@ -7,11 +7,19 @@ namespace RethinkDB {
 
 using TT = Protocol::Term::TermType;
 
-bool Datum::is_nil() {
+bool Datum::is_nil() const {
     return type == Type::NIL;
 }
 
 bool* Datum::get_boolean() {
+    if (type == Type::BOOLEAN) {
+        return &value.boolean;
+    } else {
+        return NULL;
+    }
+}
+
+const bool* Datum::get_boolean() const {
     if (type == Type::BOOLEAN) {
         return &value.boolean;
     } else {
@@ -27,6 +35,14 @@ double* Datum::get_number() {
     }
 }
 
+const double* Datum::get_number() const {
+    if (type == Type::NUMBER) {
+        return &value.number;
+    } else {
+        return NULL;
+    }
+}
+
 std::string* Datum::get_string() {
     if (type == Type::STRING) {
         return &value.string;
@@ -35,7 +51,26 @@ std::string* Datum::get_string() {
     }
 }
 
+const std::string* Datum::get_string() const {
+    if (type == Type::STRING) {
+        return &value.string;
+    } else {
+        return NULL;
+    }
+}
+
 Datum* Datum::get_field(std::string key) {
+    if (type != Type::OBJECT) {
+        return NULL;
+    }
+    auto it = value.object.find(key);
+    if (it == value.object.end()) {
+        return NULL;
+    }
+    return &it->second;
+}
+
+const Datum* Datum::get_field(std::string key) const {
     if (type != Type::OBJECT) {
         return NULL;
     }
@@ -56,7 +91,25 @@ Datum* Datum::get_nth(size_t i) {
     return &value.array[i];
 }
 
+const Datum* Datum::get_nth(size_t i) const {
+    if (type != Type::ARRAY) {
+        return NULL;
+    }
+    if (i >= value.array.size()) {
+        return NULL;
+    }
+    return &value.array[i];
+}
+
 Object* Datum::get_object() {
+    if (type == Type::OBJECT) {
+        return &value.object;
+    } else {
+        return NULL;
+    }
+}
+
+const Object* Datum::get_object() const {
     if (type == Type::OBJECT) {
         return &value.object;
     } else {
@@ -72,7 +125,23 @@ Array* Datum::get_array() {
     }
 }
 
+const Array* Datum::get_array() const {
+    if (type == Type::ARRAY) {
+        return &value.array;
+    } else {
+        return NULL;
+    }
+}
+
 Binary* Datum::get_binary() {
+    if (type == Type::BINARY) {
+        return &value.binary;
+    } else {
+        return NULL;
+    }
+}
+
+const Binary* Datum::get_binary() const {
     if (type == Type::BINARY) {
         return &value.binary;
     } else {
@@ -187,7 +256,7 @@ int Datum::compare(const Datum& other) const {
 #undef COMPARE
 }
 
-bool Datum::operator== (const Datum& other) {
+bool Datum::operator== (const Datum& other) const {
     return compare(other) == 0;
 }
 

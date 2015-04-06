@@ -112,16 +112,24 @@ public:
         throw Error("Impossible");
     }
 
-    bool is_nil();
+    bool is_nil() const;
 
     bool* get_boolean();
+    const bool* get_boolean() const;
     double* get_number();
+    const double* get_number() const;
     std::string* get_string();
+    const std::string* get_string() const;
     Object* get_object();
+    const Object* get_object() const;
     Datum* get_field(std::string);
+    const Datum* get_field(std::string) const;
     Array* get_array();
+    const Array* get_array() const;
     Datum* get_nth(size_t);
+    const Datum* get_nth(size_t) const;
     Binary* get_binary();
+    const Binary* get_binary() const;
 
     bool& extract_boolean();
     double& extract_number();
@@ -133,7 +141,7 @@ public:
     Binary& extract_binary();
 
     int compare(const Datum&) const;
-    bool operator== (const Datum&);
+    bool operator== (const Datum&) const;
 
     Datum to_raw();
 

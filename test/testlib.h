@@ -33,6 +33,8 @@ bool equal(T a, U b) {
     return a == b;
 }
 
+bool equal(const R::Datum& a, const R::Datum& b);
+
 template <class T>
 bool equal(T a, const R::Error& b) {
     return false;

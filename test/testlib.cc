@@ -105,3 +105,36 @@ R::Query fetch(R::Cursor& cursor, int count) {
 R::Object bag(R::Array&& array) {
     return R::Object{{"special", "bag"}, {"bag", std::move(array)}};
 };
+
+struct {
+    static std::string string_key(const R::Datum& datum) {
+        const std::string* string = datum.get_string();
+        if (string) return *string;
+        return write_datum(datum);
+    }
+
+    bool operator() (const R::Object& want, const R::Datum& have) {
+        if (want.count("special")) {
+            // TODO
+        } else if (want.count("$reql_type$")) {
+            const std::string* type = want.find("$reql_type$")->second.get_string();
+            if (type && *type == "GROUPED_DATA") {
+                const R::Array* data = want.find("data")->second.get_array();
+                R::Object object;
+                for (R::Datum it : *data) {
+                    object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1)); 
+                }
+                return have == object;
+            }
+        }
+        return have == want;
+    }
+    template <class T>
+    bool operator() (T a, const R::Datum& b) {
+        return b == a;
+    }
+} match_datum;
+
+bool equal(const R::Datum& a, const R::Datum& b) {
+    return b.apply<bool>(match_datum, a);
+}
