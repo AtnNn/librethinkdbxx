@@ -13,6 +13,8 @@
 
 namespace RethinkDB {
 
+const int debug_net = 0;
+
 class Connection::ReadLock {
 public:
     ReadLock(Connection& conn) : lock(conn.read_lock), conn(&conn) { }
@@ -128,6 +130,7 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
 size_t Connection::ReadLock::recv_some(char* buf, size_t size) {
     ssize_t numbytes = ::recv(conn->guarded_sockfd, buf, size, 0);
     if (numbytes == -1) throw Error::from_errno("recv");
+    if (debug_net > 1) fprintf(stderr, "<< %s\n", write_datum(std::string(buf, numbytes)).c_str());
     return numbytes;
 }
 
@@ -156,6 +159,7 @@ void Connection::WriteLock::send(const char* buf, size_t size) {
     while (size) {
         ssize_t numbytes = ::write(conn->guarded_sockfd, buf, size);
         if (numbytes == -1) throw Error::from_errno("write");
+        if (debug_net > 1) fprintf(stderr, ">> %s\n", write_datum(std::string(buf, numbytes)).c_str());
         buf += numbytes;
         size -= numbytes;
     }
@@ -192,10 +196,9 @@ uint64_t Connection::WriteLock::new_token() {
 void Connection::WriteLock::close_token(uint64_t token) {
     CacheLock guard(*conn);
     const auto& it = conn->guarded_cache.find(token);
-    if (it != conn->guarded_cache.end()) {
-        it->second.closed = true;
+    if (it != conn->guarded_cache.end() && !it->second.closed) {
+        send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::STOP))})));
     }
-    send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::STOP))})));
 }
 
 void Connection::ask_for_more(uint64_t token) {
@@ -226,6 +229,9 @@ Response Connection::wait_for_response(uint64_t token_want) {
         if (!cache.responses.empty()) {
             Response response(std::move(cache.responses.front()));
             cache.responses.pop();
+            if (cache.closed && cache.responses.empty()) {
+                guarded_cache.erase(token_want);
+            }
             return response;
         }
 
@@ -264,9 +270,20 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard)
         ResponseBuffer stream(this, length);
         Datum datum = read_datum(stream);
 
+        if (debug_net > 0) fprintf(stderr, "[%zu] << %s\n", token_got, write_datum(datum).c_str());
+
+        Response response(std::move(datum));
+
         if (token_got == token_want) {
-            Response response(std::move(datum));
             guard.lock();
+            if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
+                auto it = conn->guarded_cache.find(token_got);
+                if (it != conn->guarded_cache.end()) {
+                    it->second.closed = true;
+                    it->second.cond.notify_all();
+                }
+                conn->guarded_cache.erase(it);
+            }
             conn->guarded_loop_active = false;
             for (auto& it : conn->guarded_cache) {
                 it.second.cond.notify_all();
@@ -274,13 +291,16 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard)
             return response;
         } else {
             guard.lock();
-            TokenCache& cache = conn->guarded_cache[token_got];
-            if (false) {
-                // TODO: remove from cache if last response for token
-            } else if (!cache.closed) {
-                cache.responses.emplace(std::move(datum));
+            auto it = conn->guarded_cache.find(token_got);
+            if (it == conn->guarded_cache.end()) {
+                // drop the response
+            } else if (!it->second.closed) {
+                it->second.responses.emplace(std::move(response));
+                if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
+                    it->second.closed = true;
+                }
             }
-            cache.cond.notify_all();
+            it->second.cond.notify_all();
             guard.unlock();
         }
     }
@@ -290,10 +310,13 @@ Token Connection::start_query(const std::string& query) {
     WriteLock writer(*this);
     Token token(writer);
     writer.send_query(token.token, query);
+    CacheLock guard(*this);
+    guarded_cache[token.token];
     return token;
 }
 
 void Connection::WriteLock::send_query(uint64_t token, const std::string& query) {
+    if (debug_net > 0) fprintf(stderr, "[%zu] >> %s\n", token, query.c_str());
     char buf[12];
     memcpy(buf, &token, 8);
     uint32_t size = query.size();

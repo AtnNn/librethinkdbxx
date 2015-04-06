@@ -13,6 +13,7 @@ extern std::vector<std::pair<const char*, bool>> section;
 extern int failed;
 extern int count;
 extern std::unique_ptr<R::Connection> conn;
+extern int verbosity;
 
 std::string to_string(const char*);
 std::string to_string(const R::Datum&);
@@ -70,6 +71,9 @@ void exit_section();
 
 #define TEST_EQ(code, expected) \
     do {                                                                \
+        const char spaces[] = "                           ";            \
+        const char* indent = spaces + sizeof(spaces) - 1 - 2 * section.size(); \
+        if (verbosity > 1) fprintf(stderr, "%sTEST: %s\n", indent, #code); \
         try { test_eq(#code, (code), (expected)); }                     \
         catch (const R::Error& error) { test_eq(#code, error, (expected)); } \
     } while (0)

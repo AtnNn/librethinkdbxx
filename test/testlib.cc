@@ -5,6 +5,7 @@
 int failed = 0;
 int count = 0;
 std::vector<std::pair<const char*, bool>> section;
+int verbosity = 1;
 
 std::unique_ptr<R::Connection> conn;
 
@@ -43,7 +44,14 @@ bool equal(const R::Error &a, const R::Error& b) {
 bool equal(const char* a, const char* b);
 
 void enter_section(const char* name) {
-    section.emplace_back(name, true);
+    if (verbosity > 1) {
+        section.emplace_back(name, true);
+    } else {
+        char spaces[] = "                             ";
+        char* indent = spaces + sizeof spaces - section.size() * 2;
+        printf("%sSection %s\n", indent, name);
+        section.emplace_back(name, false);
+    }
 }
 
 void exit_section() {

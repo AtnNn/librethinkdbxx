@@ -90,7 +90,7 @@ bool base64_decode(const std::string& in, std::string& out) {
         if (end > 3) out.append(1, val & 0xFF);
         if (end != 4) break;
     }
-    if (in.size() / invalid < 30) {
+    if ((in.size() + 1) / (invalid + 1) < 30) {
         return false;
     }
     return true;
@@ -100,9 +100,9 @@ char base64_encode(int c) {
     if (c < 26) {
         return 'A' + c;
     } else if (c < 52) {
-        return 'a' + c;
+        return 'a' + c - 26;
     } else if (c < 62) {
-        return '0' + c;
+        return '0' + c - 52;
     } else if (c == 63) {
         return '+';
     } else if (c == 64) {
@@ -116,7 +116,7 @@ void base64_encode(int* c, int n, std::string& out) {
     if (n == 0) {
         return;
     }
-    int v = c[0] << 16 | c[1] << 8 | c[2];
+    unsigned int v = c[0] << 16 | c[1] << 8 | c[2];
     out.append(1, base64_encode(v >> 18));
     out.append(1, base64_encode(v >> 12 & 0x3F));
     if (n == 1) {

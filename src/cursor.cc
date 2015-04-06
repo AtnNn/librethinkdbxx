@@ -4,6 +4,7 @@ namespace RethinkDB {
 
 Cursor::Cursor(Token&& token_) : token(std::move(token_)) {
     token.ask_for_more();
+    add_response(token.wait_for_response());
 }
 
 Cursor::Cursor(Token&& token_, Response&& response) : token(std::move(token_)) {
@@ -14,7 +15,9 @@ Cursor::Cursor(Token&& token_, Response&& response) : token(std::move(token_)) {
 }
 
 Cursor::~Cursor() {
-    close();
+    if (!no_more) {
+        close();
+    }
 }
 
 Datum& Cursor::next() {
@@ -103,11 +106,13 @@ void Cursor::add_response(Response&& response) {
     case RT::SUCCESS_ATOM:
         add_results(std::move(response.result));
         single = true;
+        no_more = true;
         break;
     case RT::WAIT_COMPLETE:
     case RT::CLIENT_ERROR:
     case RT::COMPILE_ERROR:
     case RT::RUNTIME_ERROR:
+        no_more = true;
         throw response.as_error(); 
     }
 }

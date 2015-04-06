@@ -11,6 +11,7 @@ void test_json(const char* string, const char* ret = "") {
 }
 
 void test_json_parse_print() {
+    enter_section("json");
     test_json("null");
     test_json("1.2");
     test_json("1.2e20", "1.2e+20");
@@ -26,14 +27,18 @@ void test_json_parse_print() {
     test_json("{}");
     test_json("{\"a\":1}");
     test_json("{\"a\":1,\"b\":2,\"c\":3}");
+    exit_section();
 }
 
 void test_reql() {
+    enter_section("reql");
     TEST_EQ((R::expr(1) + 2).run(*conn), R::Datum(3));
     TEST_EQ(R::range(4).count().run(*conn), R::Datum(4));
+    exit_section();
 }
 
 void test_cursor() {
+    enter_section("cursor");
     R::Cursor cursor = R::range(10000).run_cursor(*conn);
     TEST_EQ(cursor.next(), 0);
     R::Array array = cursor.to_array();
@@ -43,7 +48,18 @@ void test_cursor() {
     int i = 0;
     R::range(3).run_cursor(*conn).each([&i](R::Datum&& datum){
             TEST_EQ(datum, i++); });
-    
+    exit_section();
+}
+
+void test_encode(const char* str, const char* b) {
+    TEST_EQ(R::base64_encode(str), b);
+}
+
+void test_binary() {
+    enter_section("base64");
+    test_encode("", "");
+    test_encode("foo", "Zm9v");
+    exit_section();
 }
 
 int main() {
@@ -51,21 +67,23 @@ int main() {
     srand(time(NULL));
     try {
         conn = R::connect();
+        R::db("rethinkdb").table("_debug_scratch").delete_().run(*conn);
     } catch(const R::Error& error) {
         printf("FAILURE: could not connect to localhost:28015: %s\n", error.message.c_str());
         return 1;
     }
     try {
-        test_json_parse_print();
-        test_reql();
-        test_cursor();
+        //test_binary();
+        //test_json_parse_print();
+        //test_reql();
+        //test_cursor();
         run_upstream_tests();
     } catch (const R::Error& error) {
         printf("FAILURE: uncaught expception: %s\n", error.message.c_str());
         return 1;
     }
     if (!failed) {
-        printf("SUCCESS: All %d tests passed\n", count);
+        printf("SUCCESS: %d tests passed\n", count);
     } else {
         printf("DONE: %d of %d tests failed\n", failed, count);
         return 1;

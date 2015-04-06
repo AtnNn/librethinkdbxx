@@ -60,7 +60,7 @@ private:
     struct TokenCache {
         bool closed = false;
         std::condition_variable cond;
-        std::queue<Datum> responses;
+        std::queue<Response> responses;
     };
 
     std::map<uint32_t, TokenCache> guarded_cache;
