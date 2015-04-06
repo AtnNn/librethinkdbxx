@@ -2,6 +2,7 @@
 #include "error.h"
 #include "json.h"
 #include "utils.h"
+#include "cursor.h"
 
 namespace RethinkDB {
 
@@ -284,6 +285,14 @@ Datum Datum::to_raw() {
             {"data", base64_encode(value.binary.data)}};
     }
     return *this;
+}
+
+Datum::Datum(Cursor& cursor) : Datum(Nil()) {
+    if (cursor.is_single()) {
+        *this = cursor.next();
+    } else {
+        *this = cursor.to_array();
+    }
 }
 
 }

@@ -179,6 +179,7 @@ C0_IMPL(uuid, UUID)
 C0_IMPL(literal, LITERAL)
 CO0_IMPL(wait, WAIT)
 C0_IMPL(rebalance, REBALANCE)
+CO0_IMPL(random, RANDOM)
 
 Query row(TT::IMPLICIT_VAR, {});
 Query minval(TT::MINVAL, {});

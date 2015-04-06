@@ -29,6 +29,7 @@ public:
     Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
     Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
     Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, Var, Var>(f); }
+    Query(std::function<Query(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var, Var)>, Var, Var, Var>(f); }
 
     Query(Protocol::Term::TermType type, std::vector<Query>&& args) : datum(Array()) {
         Array dargs;
@@ -180,7 +181,7 @@ public:
     C_(contains, CONTAINS, func_wrap)
     C_(pluck, PLUCK, no_wrap)
     C_(without, WITHOUT, no_wrap)
-    C1(merge, MERGE, func_wrap)
+    C_(merge, MERGE, func_wrap)
     C1(append, APPEND, no_wrap)
     C1(prepend, PREPEND, no_wrap)
     C1(difference, DIFFERENCE, no_wrap)
@@ -252,7 +253,8 @@ public:
     C1(coerce_to, COERCE_TO, no_wrap)
     C0(type_of, TYPE_OF)
     C0(info, INFO)
-    C1(to_json, TO_JSON_STRING, no_wrap)
+    C0(to_json, TO_JSON_STRING)
+    C0(to_json_string, TO_JSON_STRING)
     C1(distance, DISTANCE, no_wrap)
     C0(fill, FILL)
     C0(to_geojson, TO_GEOJSON)
@@ -281,11 +283,10 @@ public:
 
     template <class ...T>
     Query do_(T&& ...a) && {
-        auto list = { expr(std::forward<T>(a))... };
+        auto list = { std::move(*this), expr(std::forward<T>(a))... };
         std::vector<Query> args;
         args.reserve(list.size() + 1);
         args.emplace_back(func_wrap(std::move(*(list.end()-1))));
-        args.emplace_back(std::move(*this));
         for (auto it = list.begin(); it + 1 != list.end(); ++it) {
             args.emplace_back(std::move(*it));
         }
@@ -388,7 +389,7 @@ void Query::set_function(F f) {
 #define CO1(name, type, wrap) template <class T> Query name(T&& a, OptArgs&& optarg = {}) {       \
         return Query(TT::type, std::vector<Query>{ wrap(expr(std::forward<T>(a)))}, std::move(optarg)); }
 #define CO2(name, type) template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) { \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::forward<U>(b)}, std::move(optarg)); }
+        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), expr(std::forward<U>(b))}, std::move(optarg)); }
 #define CB(name, type)                                                  \
     template <class T> Query name(T&& a, Query&& b) {                   \
         return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::move(b) }); } \
@@ -418,7 +419,9 @@ C2(ge, GE)
 C2(lt, LT)
 C2(le, LE)
 C1(not_, NOT, no_wrap)
-C0(random)
+CO0(random)
+CO1(random, RANDOM, no_wrap)
+CO2(random, RANDOM)
 C0(now)
 C4(time, TIME)
 C7(time, TIME)
@@ -448,6 +451,9 @@ C0(literal)
 C1(literal, LITERAL, no_wrap)
 CO0(wait)
 C0(rebalance)
+C1(type_of, TYPE_OF, no_wrap)
+C1(binary, BINARY, no_wrap)
+C_(map, MAP)
 
 #undef C0
 #undef C1

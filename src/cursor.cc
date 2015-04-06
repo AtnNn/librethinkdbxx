@@ -73,7 +73,7 @@ bool Cursor::has_next() {
     }
 }
 
-bool Cursor::is_single() {
+bool Cursor::is_single() const {
     return single;
 }
 

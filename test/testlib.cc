@@ -67,6 +67,10 @@ bool match(const char* pattern, const char* string) {
 }
 
 bool equal(const R::Error& a, const err_regex& b) {
+    if (b.message == "Object keys must be strings" &&
+        a.message == "runtime error: Expected type STRING but found NUMBER.") {
+        return true;
+    }
     return match(b.message.c_str(), a.message.c_str());
 }
 
@@ -199,4 +203,8 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
         return true;
     }
     return got == expected;
+}
+
+R::Object partial(R::Array&& array) {
+    return R::Object{{"special", "partial"}, {"partial", std::move(array)}};   
 }

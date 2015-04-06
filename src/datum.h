@@ -11,6 +11,8 @@
 
 namespace RethinkDB {
 
+class Cursor;
+
 class Datum {
 public:
     Datum(Nil) : type(Type::NIL), value() { }
@@ -53,7 +55,7 @@ public:
     Datum(int64_t number_) : Datum(static_cast<double>(number_)) { }
     Datum(Protocol::Term::TermType type) : Datum(static_cast<double>(type)) { }
     Datum(const char* string) : Datum(static_cast<std::string>(string)) { }
-
+    Datum(Cursor& cursor);
 
     template <class T>
     Datum(const std::map<std::string, T>& map) : type(Type::OBJECT), value(Object()) {

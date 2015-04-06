@@ -3,6 +3,7 @@
 #include <sstream>
 #include <cstdio>
 #include <stack>
+#include <cmath>
 
 #include <rethinkdb.h>
 
@@ -107,7 +108,7 @@ bool equal(T a, const err& b) {
 }
 
 struct err_regex {
-    err_regex(const char* type_, const char* message_, R::Array&& backtrace_) :
+    err_regex(const char* type_, const char* message_, R::Array&& backtrace_ = {}) :
         type(type_), message(message_), backtrace(std::move(backtrace_)) { }
     std::string type;
     std::string message;
@@ -126,6 +127,7 @@ bool equal(T a, const err_regex& b) {
 std::string to_string(const err_regex& error);
 
 R::Object partial(R::Object&& object);
+R::Object partial(R::Array&& object);
 
 R::Datum uuid();
 

@@ -1,11 +1,24 @@
-CXX = clang++
-CXXFLAGS = -std=c++11 -g -I'build/gen' -Wall -pthread
+CXX := clang++
+CXXFLAGS := -std=c++11 -g -I'build/gen' -Wall -pthread
 
-modules = net datum json query cursor types utils
-headers = utils error stream types datum json net cursor query
+modules := net datum json query cursor types utils
+headers := utils error stream types datum json net cursor query
 
-o_files = $(patsubst %, build/obj/%.o, $(modules))
-d_files = $(patsubst %, build/dep/%.d, $(modules))
+o_files := $(patsubst %, build/obj/%.o, $(modules))
+d_files := $(patsubst %, build/dep/%.d, $(modules))
+
+skip_tests := regression/1133 regression/767 regression/1005 # python-only
+skip_tests += changefeeds/squash # double run
+skip_tests += arity # arity errors are compile-time
+skip_tests += times regression/1023 regression/2774 # time
+skip_tests += geo # geo
+
+test_filter = 
+upstream_tests := $(filter-out $(patsubst %,test/upstream/%%, $(skip_tests)), $(filter test/upstream/$(test_filter)%,$(shell find test/upstream -name '*.yaml')))
+upstream_tests_cc := $(patsubst %.yaml, build/tests/%.cc, $(upstream_tests))
+upstream_tests_o := $(patsubst %.cc, %.o, $(upstream_tests_cc))
+
+.PRECIOUS: $(upstream_tests_cc) $(upstream_tests_o)
 
 default: build/librethinkdb++.a
 
@@ -15,12 +28,12 @@ build/librethinkdb++.a: $(o_files)
 	ar rcs $@ $^
 
 build/librethink++.so: $(o_files)
-	$(CXX) $(CXXFLAGS) -shared -o $@ $^
+	$(CXX) -o $@ $(CXXFLAGS) -shared $^
 
 build/obj/%.o: src/%.cc build/gen/protocol_defs.h
 	@mkdir -p $(dir $@)
 	@mkdir -p $(dir build/dep/$*.d)
-	$(CXX) $(CXXFLAGS) -c -o $@ $< -MP -MQ $@ -MD -MF build/dep/$*.d
+	$(CXX) -o $@ $(CXXFLAGS) -c $< -MP -MQ $@ -MD -MF build/dep/$*.d
 
 build/gen/protocol_defs.h: reql/ql2.proto reql/gen.py | build/gen/.
 	python3 reql/gen.py $< > $@
@@ -36,12 +49,23 @@ build/include/rethinkdb.h: build/gen/protocol_defs.h $(patsubst %, src/%.h, $(he
 	    grep -v '^#include "'; \
 	) > $@
 
-build/gen/upstream_tests.cc: test/yaml_to_cxx.py
-	python3 test/yaml_to_cxx.py test/upstream > $@
+build/tests/%.cc: %.yaml test/yaml_to_cxx.py
+	@mkdir -p $(dir $@)
+	python3 test/yaml_to_cxx.py $< > $@
 
-test_sources = test/testlib.cc test/test.cc build/gen/upstream_tests.cc
-build/test: $(test_sources) test/testlib.h build/librethinkdb++.a build/include/rethinkdb.h
-	$(CXX) $(CXXFLAGS) -o $@ -isystem build/include -I test $(test_sources) build/librethinkdb++.a
+build/tests/upstream_tests.cc: $(upstream_tests) test/gen_index_cxx.py FORCE | build/tests/.
+	@echo 'python3 test/gen_index_cxx.py ... > $@'
+	@python3 test/gen_index_cxx.py $(upstream_tests) > $@
+
+build/tests/%.o: build/tests/%.cc build/include/rethinkdb.h test/testlib.h | build/tests/.
+	$(CXX) -o $@ $(CXXFLAGS) -isystem build/include -I test -c $< -Wno-unused-variable
+
+build/tests/%.o: test/%.cc test/testlib.h build/include/rethinkdb.h | build/tests/.
+	$(CXX) -o $@ $(CXXFLAGS) -isystem build/include -I test -c $<
+
+build/test: build/tests/testlib.o build/tests/test.o build/tests/upstream_tests.o $(upstream_tests_o) build/librethinkdb++.a
+	@echo $(CXX) -o $@ $(CXXFLAGS) build/librethinkdb++.a ...
+	@$(CXX) -o $@ $(CXXFLAGS) build/librethinkdb++.a $^ 
 
 .PHONY: test
 test: build/test
@@ -49,5 +73,8 @@ test: build/test
 
 %/.:
 	mkdir -p $*
+
+.PHONY: FORCE
+FORCE:
 
 -include $(d_files)

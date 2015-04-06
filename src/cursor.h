@@ -17,7 +17,7 @@ public:
     Array to_array();
     void close();
     bool has_next();
-    bool is_single();
+    bool is_single() const;
 
 private:
     void add_response(Response&&);
