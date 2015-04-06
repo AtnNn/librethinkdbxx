@@ -363,9 +363,9 @@ for py, ot, tp in python_tests(data["tests"]):
             elif var == 'float_min':
                 p('auto float_min = ' + repr(float_info.min) + ";")
             elif assignment and tp == 'def':
-                p("TEST_DO(" + dvar + " = " + convert(assignment.group(2), 15, name, 'datum') + ");")
+                p("TEST_DO(" + dvar + " = (" + convert(assignment.group(2), 15, name, 'datum') + "));")
             else:
-                p("TEST_DO(" + dvar + " = " + convert(assignment.group(2), 15, name, 'query') + ".run_cursor(*conn));")
+                p("TEST_DO(" + dvar + " = (" + convert(assignment.group(2), 15, name, 'query') + ".run_cursor(*conn)));")
         elif ot:
             p("TEST_EQ(%s.run(*conn), (%s));" % (convert(py, 2, name, 'query'), convert(ot, 17, name, 'datum')))
         else:

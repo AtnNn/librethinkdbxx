@@ -13,7 +13,16 @@ skip_tests += arity # arity errors are compile-time
 skip_tests += times regression/1023 regression/2774 # time
 skip_tests += geo # geo
 
-test_filter = 
+# TODO
+# test_filter = datum/binary
+# test_filter = transformation
+# test_filter = math_logic/comparison
+# test_filter = math_logic/logic
+# test_filter = control
+# test_filter = arraylimits
+# test_filter = regression/2838
+skip_tests += regression/370
+
 upstream_tests := $(filter-out $(patsubst %,test/upstream/%%, $(skip_tests)), $(filter test/upstream/$(test_filter)%,$(shell find test/upstream -name '*.yaml')))
 upstream_tests_cc := $(patsubst %.yaml, build/tests/%.cc, $(upstream_tests))
 upstream_tests_o := $(patsubst %.cc, %.o, $(upstream_tests_cc))
