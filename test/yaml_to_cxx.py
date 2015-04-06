@@ -1,4 +1,5 @@
-from sys import argv, stderr, exit
+from sys import argv, stderr
+import sys
 from yaml import load
 from os import walk
 from os.path import join
@@ -13,21 +14,24 @@ class Unhandled(Exception):
     pass
 
 failed = False
-count = 0
 
 Ctx = namedtuple('Ctx', ['vars', 'context', 'type'])
 
 def convert(python, prec, file, type):
     try:
-        if not isinstance(python, "".__class__):
-            python = repr(python)
         expr = ast.parse(python, filename=file, mode='eval').body
-        return to_cxx(expr, prec, Ctx(vars=[], type=type, context=None))
+        cxx = to_cxx(expr, prec, Ctx(vars=[], type=type, context=None))
+        return sub('" \\+ "', '', cxx)
     except Unhandled:
         print("While translating: " + python, file=stderr)
         raise
     except SyntaxError as e:
         raise Unhandled("syntax error: " + str(e) + ": " + python)
+
+def py_str(py):
+    if not isinstance(py, "".__class__):
+            return repr(py)
+    return py
 
 def rename(id):
     return {
@@ -42,6 +46,23 @@ def rename(id):
         'delete': 'delete_'
     }.get(id, id)
 
+def to_cxx_str(expr):
+    if type(expr) is ast.Str:
+        return string(expr.s)
+    if type(expr) is ast.Num:
+        return string(str(expr.n))
+    if 'frozenset' in ast.dump(expr):
+        raise Discard
+    raise Unhandled("not string expr: " + ast.dump(expr))
+
+def is_null(expr):
+    return type(expr) is ast.Name and expr.id in ['None', 'null']
+
+def to_cxx_expr(expr, prec, ctx):
+    if ctx.type is 'query':
+        if type(expr) in [ast.Str, ast.Num] or is_null(expr):
+            return "R::expr(" + to_cxx(expr, 17, ctx) + ")"
+    return to_cxx(expr, prec, ctx)
 def to_cxx(expr, prec, ctx):
     context = ctx.context
     ctx = Ctx(vars=ctx.vars, type=ctx.type, context=None)
@@ -83,7 +104,7 @@ def to_cxx(expr, prec, ctx):
             if ctx.type is 'query':
                 return "R::object(" + ', '.join([to_cxx(k, 17, ctx) + ", " + to_cxx(v, 17, ctx) for k, v in zip(expr.keys, expr.values)]) + ")"
             else:
-                return "R::Object{" + ', '.join(["{" + to_cxx(k, 17, ctx) + "," + to_cxx(v, 17, ctx) + "}" for k, v in zip(expr.keys, expr.values)]) + "}"
+                return "R::Object{" + ', '.join(["{" + to_cxx_str(k) + "," + to_cxx(v, 17, ctx) + "}" for k, v in zip(expr.keys, expr.values)]) + "}"
         elif t == ast.Str:
             return string(expr.s)
         elif t == ast.List:
@@ -95,15 +116,15 @@ def to_cxx(expr, prec, ctx):
             assert not expr.args.vararg
             assert not expr.args.kwarg
             ctx = ctx_set(ctx, vars = ctx.vars + [arg.arg for arg in expr.args.args])
-            return "[=](" + ', '.join(['R::Var ' + arg.arg for arg in expr.args.args]) + "){ return " + to_cxx(expr.body, 17, ctx) + "; }"
+            return "[=](" + ', '.join(['R::Var ' + arg.arg for arg in expr.args.args]) + "){ return " + to_cxx_expr(expr.body, 17, ctx) + "; }"
         elif t == ast.BinOp:
             if type(expr.op) is ast.Mult and type(expr.left) is ast.Str:
                 return "repeat(" + to_cxx(expr.left, 17, ctx) + ", " + to_cxx(expr.right, 17, ctx) + ")"
             op, op_prec = convert_op(expr.op)
             if op_prec: 
-                return parens(prec, op_prec, to_cxx(expr.left, op_prec, ctx) + op + to_cxx(expr.right, op_prec, ctx))
+                return parens(prec, op_prec, to_cxx_expr(expr.left, op_prec, ctx) + " " + op + " " + to_cxx(expr.right, op_prec, ctx))
             else:
-                return op + "(" +  to_cxx(expr.left, 17, ctx) + ", " + to_cxx(expr.right, 17, ctx) + ")"
+                return op + "(" + to_cxx(expr.left, 17, ctx) + ", " + to_cxx(expr.right, 17, ctx) + ")"
         elif t == ast.ListComp:
             assert len(expr.generators) == 1
             assert type(expr.generators[0]) == ast.comprehension
@@ -253,13 +274,13 @@ def get(o, ks, d):
 def python_tests(tests):
     for test in tests:
         try:
-            ot = get(test['ot'], ['py', 'cd'], test['ot'])
+            ot = py_str(get(test['ot'], ['py', 'cd'], test['ot']))
         except:
             ot = None
         if 'def' in test:
             py = get(test['def'], ['py', 'cd'], test['def'])
-            if type(py) is not dict:
-                yield py, None, 'def'
+            if py and type(py) is not dict:
+                yield py_str(py), None, 'def'
         else:
             py = get(test, ['py', 'cd'], None)
             if py:
@@ -267,55 +288,56 @@ def python_tests(tests):
                     yield py, ot, 'query'
                 else:
                     for t in py:
-                        yield t, ot, 'query'
+                        yield py_str(t), ot, 'query'
 
 skip = [
-    'test_upstream_regression_1133'
+    'test_upstream_regression_1133', # python-only
+    'test_upstream_times_api', # no time support yet
 ]
 
 def maybe_discard(py, ot):
-    if "Expected between" in str(ot):
+    if ot is None:
+        return
+    if match(".*Expected .* argument", ot):
         raise Discard
 
 for dirpath, dirnames, filenames in walk(argv[1]):
     section_name = sub('/', '_', dirpath)
     p("enter_section(\"%s\");" % section_name)
-    for file in filenames:
+    for file in sorted(filenames)[:1]: # TODO
         name = section_name + '_' + file.split('.')[0]
         if name in skip:
             continue
         data = load(open(join(dirpath, file)).read())
         enter("{")
-        p("enter_section(\"%s\");" % data['desc'])
+        p("enter_section(\"%s: %s\");" % (file.split('.')[0], data['desc']))
         if 'table_variable_name' in data:
             for var in data['table_variable_name'].split():
-                p("R::Query %s(new_table());" % var)
+                p("temp_table %s_table;" % var)
+                p("R::Query %s = %s_table.table();" % (var, var)) 
         for py, ot, tp in python_tests(data["tests"]):
             try:
                 maybe_discard(py, ot)
                 assignment = match("^(\w+) *= *([^=].*)$", py)
                 if assignment and tp == 'def':
-                    p("auto " + assignment.group(1) + " = " + convert(assignment.group(2), 15, name, 'query') + ";")
+                    p("auto " + assignment.group(1) + " = " + convert(assignment.group(2), 15, name, 'datum') + ";")
                 elif assignment:
                     p("auto " + assignment.group(1) + " = " + convert(assignment.group(2), 15, name, 'query') + ".run_cursor(*conn);")
                 elif ot:
                     p("TEST_EQ(%s.run(*conn), (%s));" % (convert(py, 2, name, 'query'), convert(ot, 17, name, 'datum')))
                 else:
                     p("%s.run(*conn);" % convert(py, 2, name, 'query'))
-                count = count + 1 
             except Discard:
                 pass
             except Unhandled as e:
                 failed = True
                 print("Could not translate: " + str(e), file=stderr)
-                
+
         p("exit_section();") 
         exit("}")
-        if count > 100:
-            break # TODO
     p("exit_section();")
         
 print("}")
 
 if failed:
-    exit(1)
+    sys.exit(1)

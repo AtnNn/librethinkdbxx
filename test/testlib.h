@@ -8,7 +8,7 @@
 
 namespace R = RethinkDB;
 
-std::stack<const char*> section;
+extern std::vector<std::pair<const char*, bool>> section;
 extern int failed;
 extern int count;
 extern std::unique_ptr<R::Connection> conn;
@@ -23,9 +23,10 @@ std::string to_string(T a) {
     return s.str();
 }
 
-std::string to_string(R::Error error) {
-    return "Error<" + error.message + ">";
-}
+std::string to_string(const R::Error& error);
+std::string to_string(const R::Object& object);
+std::string to_string(const R::Array& array);
+std::string to_string(const R::Nil& nil);
 
 template <class T, class U>
 bool equal(T a, U b) {
@@ -42,31 +43,33 @@ bool equal(const R::Error& a, T b) {
     return false;
 }
 
-bool equal(const R::Error &a, const R::Error& b) {
-    return a.message == b.message;
-}
-
+bool equal(const R::Error &a, const R::Error& b);
 bool equal(const char* a, const char* b);
 
 template <class T, class U>
 void test_eq(const char* code, T&& val, U&& expected) {
     count ++;
     if (!equal(val, expected)) {
+        const char spaces[] = "                           ";
         failed = true;
-        printf("FAILURE: Expected `%s' but got `%s' in `%s'\n",
+        const char* indent = spaces + sizeof(spaces) - 1;
+        for (auto& it : section) {
+            if (it.second) {
+                printf("%sSection: %s\n", indent, it.first);
+                it.second = false;
+            }
+            indent -= 2;
+        }
+        printf("%sFAILURE: Expected `%s' but got `%s' in `%s'\n",
+               indent,
                to_string(expected).c_str(),
                to_string(val).c_str(),
                code);
     }
 }
 
-void enter_section(const char* name) {
-    section.push(name);
-}
-
-void exit_section() {
-    section.pop();
-}
+void enter_section(const char* name);
+void exit_section();
 
 #define TEST_EQ(code, expected) \
     do {                                                                \
@@ -82,6 +85,15 @@ struct err {
     R::Array backtrace;
 };
 
+std::string to_string(const err& error);
+
+bool equal(const R::Error& a, const err& b);
+
+template <class T>
+bool equal(T a, const err& b) {
+    return false;
+}
+
 struct err_regex {
     err_regex(const char* type_, const char* message_, R::Array&& backtrace_) :
         type(type_), message(message_), backtrace(std::move(backtrace_)) { }
@@ -90,52 +102,45 @@ struct err_regex {
     R::Array backtrace;
 };
 
-R::Object partial(R::Object&& object) {
-    object.emplace("<PARTIAL>", true);
-    return object;
+bool match(const char* pattern, const char* string);
+
+bool equal(const R::Error& a, const err_regex& b);
+
+template <class T>
+bool equal(T a, const err_regex& b) {
+    return false;
 }
 
-R::Datum uuid() {
-    return "<UUID>";
-}
+std::string to_string(const err_regex& error);
 
-R::Datum arrlen(int n, R::Datum&& datum) {
-    R::Array array;
-    for (int i = 0; i < n; ++i) {
-        array.emplace_back(std::move(datum));
+R::Object partial(R::Object&& object);
+
+R::Datum uuid();
+
+R::Object arrlen(int n, R::Datum&& datum);
+
+R::Object arrlen(int n);
+
+R::Query new_table();
+
+std::string repeat(std::string&& s, int n);
+
+R::Query fetch(R::Cursor& cursor, int count);
+
+R::Object bag(R::Array&& array);
+
+struct temp_table {
+    temp_table() {
+        char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        char name_[15] = "temp_";
+        for (unsigned int i = 5; i + 1 < sizeof name_; ++i) {
+            name_[i] = chars[random() % sizeof chars];
+        }
+        name_[14] = 0;
+        R::table_create(name_).run(*conn);
+        name = name_; 
     }
-    return array;
-}
-
-R::Query new_table() {
-    char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    char name[10];
-    for (unsigned int i = 0; i + 1 < sizeof name; ++i) {
-        name[i] = chars[random() % sizeof chars];
-    }
-    name[9] = 0;
-    R::table_create(name).run(*conn);
-    return R::expr(name);
-}
-
-std::string repeat(std::string&& s, int n) {
-    std::string string;
-    string.reserve(n * s.size());
-    for (int i = 0; i < n; ++i) {
-        string.append(s);
-    }
-    return string;
-}
-
-R::Query fetch(R::Cursor& cursor, int count) {
-    R::Array array;
-    for (int i = 0; i < count; ++i) {
-        array.emplace_back(cursor.next());
-    }
-    return expr(std::move(array));
-}
-
-struct bag {
-    bag(R::Array array_) : array(array_) {}
-    R::Array array;
+    ~temp_table() { R::table_drop(name).run(*conn); }
+    R::Query table() { return R::table(name); }
+    std::string name;
 };

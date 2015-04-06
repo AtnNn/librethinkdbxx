@@ -15,17 +15,6 @@ class Var;
 template <class T>
 Query expr(T&&);
 
-struct datum_to_query_t {
-    Datum operator() (const Array& array);
-    Datum operator() (const Object& object);
-    template<class T>
-    Datum operator() (T&& atomic) {
-        return Datum(std::forward<T>(atomic));
-    }
-};
-
-extern datum_to_query_t datum_to_query;
-
 int gen_var_id();
 
 using OptArgs = std::map<std::string, Query>;
@@ -35,11 +24,11 @@ public:
     Query(const Query& other) : free_vars(other.free_vars), datum(other.datum) { }
     Query(Query&& other) : free_vars(std::move(other.free_vars)), datum(std::move(other.datum)) { }
 
-    template <class T>
-    explicit Query(T&& a) : datum(Datum(a).apply<Datum>(datum_to_query)) { }
+    explicit Query(Datum&& a);
 
-    template <class ...A>
-    Query(std::function<Query(A...)> f);
+    Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
+    Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
+    Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, Var, Var>(f); }
 
     Query(Protocol::Term::TermType type, std::vector<Query>&& args) : datum(Array()) {
         Array dargs;
@@ -106,6 +95,32 @@ public:
     template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) const & { \
         return Query(TT::type, std::vector<Query>{ this->copy(),        \
                     expr(std::forward<T>(a)), expr(std::forward<U>(b)) }, std::move(optarg)); }
+#define CO3(name, type)                                                 \
+    template <class T, class U, class V> Query name(T&& a, U&& b, V&& c, OptArgs&& optarg = {}) && { \
+        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+                    expr(std::forward<T>(a)), expr(std::forward<U>(b)), \
+                    expr(std::forward<V>(c)) }, std::move(optarg)); } \
+    template <class T, class U, class V> Query name(T&& a, U&& b, V&& c, OptArgs&& optarg = {}) const & { \
+        return Query(TT::type, std::vector<Query>{ this->copy(),        \
+                    expr(std::forward<T>(a)), expr(std::forward<U>(b)), \
+                    expr(std::forward<V>(c))}, std::move(optarg)); }
+#define CO4(name, type)                                                 \
+    template <class T, class U, class V, class W> Query name(T&& a, U&& b, V&& c, W&& d, OptArgs&& optarg = {}) && { \
+        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+                    expr(std::forward<T>(a)), expr(std::forward<U>(b)), \
+                    expr(std::forward<V>(c)), expr(std::forward<W>(d)) }, std::move(optarg)); } \
+    template <class T, class U, class V, class W> Query name(T&& a, U&& b, V&& c, W&& d, OptArgs&& optarg = {}) const & { \
+        return Query(TT::type, std::vector<Query>{ this->copy(),        \
+                    expr(std::forward<T>(a)), expr(std::forward<U>(b)), \
+                    expr(std::forward<V>(c)), expr(std::forward<W>(d)) }, std::move(optarg)); }
+#define CO_(name, type) \
+    C_(name, type)      \
+    CO0(name, type)     \
+    CO1(name, type)     \
+    CO2(name, type)     \
+    CO3(name, type)     \
+    CO4(name, type)
+
 
     CO1(table_create, TABLE_CREATE)
     C1(table_drop, TABLE_DROP)
@@ -117,7 +132,7 @@ public:
     CO2(index_rename, INDEX_RENAME)
     C_(index_status, INDEX_STATUS)
     C_(index_wait, INDEX_WAIT)
-    C0(changes, CHANGES)
+    CO0(changes, CHANGES)
     CO1(insert, INSERT)
     CO1(update, UPDATE)
     CO1(replace, REPLACE)
@@ -125,7 +140,7 @@ public:
     C0(sync, SYNC)
     CO1(table, TABLE)
     C1(get, GET)
-    C_(get_all, GET_ALL)
+    CO_(get_all, GET_ALL)
     CO2(between, BETWEEN)
     CO1(filter, FILTER)
     C2(inner_join, INNER_JOIN)
@@ -135,7 +150,7 @@ public:
     C_(map, MAP)
     C_(with_fields, WITH_FIELDS)
     C1(concat_map, CONCAT_MAP)
-    C_(order_by, ORDER_BY)
+    CO_(order_by, ORDER_BY)
     C1(skip, SKIP)
     C1(limit, LIMIT)
     CO1(slice, SLICE)
@@ -145,7 +160,7 @@ public:
     C0(is_empty, IS_EMPTY)
     C1(union_, UNION)
     C1(sample, SAMPLE)
-    C_(group, GROUP)
+    CO_(group, GROUP)
     C0(ungroup, UNGROUP)
     C1(reduce, REDUCE)
     C0(count, COUNT)
@@ -243,7 +258,7 @@ public:
     C1(includes, INCLUDES)
     C1(intersects, INTERSECTS)
     C1(polygon_sub, POLYGON_SUB)
-    C1(config, CONFIG)
+    C0(config, CONFIG)
     C0(rebalance, REBALANCE)
     CO0(reconfigure, RECONFIGURE)
     C0(status, STATUS)
@@ -268,7 +283,7 @@ public:
         args.reserve(list.size() + 1);
         args.emplace_back(std::move(*(list.end()-1)));
         args.emplace_back(std::move(*this));
-        for (auto it = list.begin(); it + 1 != args.end(); ++it) {
+        for (auto it = list.begin(); it + 1 != list.end(); ++it) {
             args.emplace_back(std::move(*it));
         }
         return Query(TT::FUNCALL, std::move(args));
@@ -285,6 +300,9 @@ private:
 
     template <class _>
     Var mkvar(std::vector<int>& vars);
+
+    template <class F, class ...A>
+    void set_function(F);
 
     Datum alpha_rename(Query&&);
 
@@ -314,29 +332,31 @@ private:
 };
 
 template <class _>
-Var mkvar(std::vector<int>& vars) {
+Var Query::mkvar(std::vector<int>& vars) {
     int id = gen_var_id();
     vars.push_back(id);
     return Var(&*vars.rbegin());
 }
 
-template <class ...A>
-Query::Query(std::function<Query(A...)> f) : datum(Nil()) {
+template <class F, class ...A>
+void Query::set_function(F f) {
     std::vector<int> vars;
     vars.reserve(sizeof...(A));
-    *this = f(Var(mkvar<A>(vars))...);
+    Query body = f(mkvar<A>(vars)...);
     int* low = &*vars.begin();
     int* high = &*vars.end();
-    for (auto it = free_vars.begin(); it != free_vars.end(); ) {
+    for (auto it = body.free_vars.begin(); it != body.free_vars.end(); ) {
         if (it->second >= low && it->second < high) {
             if (it->first != *it->second) {
                 throw Error("Internal error: variable index mis-match");
             }
-            free_vars.erase(it++);
+            ++it;
         } else {
+            free_vars.emplace(*it);
             ++it;
         }
     }
+    datum = Array{TT::FUNC, Array{Array{TT::MAKE_ARRAY, vars}, body.datum}};
 }
 
 
@@ -416,19 +436,6 @@ C1(geojson, GEOJSON)
 C_(line, LINE)
 C2(point, POINT)
 C_(polygon, POLYGON)
-CB(operator+, ADD)
-CB(operator-, SUB)
-CB(operator*, MUL)
-CB(operator/, DIV)
-CB(operator%, MOD)
-CB(operator&&, AND)
-CB(operator||, OR)
-CB(operator==, EQ)
-CB(operator!=, NE)
-CB(operator>, GT)
-CB(operator>=, GE)
-CB(operator<, LT)
-CB(operator<=, LE)
 C_(object, OBJECT)
 C_(array, MAKE_ARRAY)
 C1(desc, DESC)
@@ -436,7 +443,7 @@ C1(asc, ASC)
 C0(literal)
 C1(literal, LITERAL)
 CO0(wait)
-C0(rebalance, REBALANCE)
+C0(rebalance)
 
 #undef C0
 #undef C1
@@ -457,8 +464,6 @@ extern Query row;
 extern Query maxval;
 extern Query minval;
 
-Query binary(const std::string& data) {
-    return expr(Binary(data));
-}
+Query binary(const std::string& data);
 
 }

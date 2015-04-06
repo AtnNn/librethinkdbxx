@@ -1,6 +1,10 @@
 #include <signal.h>
 
+#include <ctime>
+
 #include "testlib.h"
+
+extern void run_upstream_tests();
 
 void test_json(const char* string, const char* ret = "") {
     TEST_EQ(R::write_datum(R::read_datum(string)).c_str(), ret[0] ? ret : string);
@@ -25,7 +29,7 @@ void test_json_parse_print() {
 }
 
 void test_reql() {
-    TEST_EQ((R::expr(1) + 2).run(*conn), R::Datum(2));
+    TEST_EQ((R::expr(1) + 2).run(*conn), R::Datum(3));
     TEST_EQ(R::range(4).count().run(*conn), R::Datum(4));
 }
 
@@ -44,6 +48,7 @@ void test_cursor() {
 
 int main() {
     signal(SIGPIPE, SIG_IGN);
+    srand(time(NULL));
     try {
         conn = R::connect();
     } catch(const R::Error& error) {
@@ -54,6 +59,7 @@ int main() {
         test_json_parse_print();
         test_reql();
         test_cursor();
+        run_upstream_tests();
     } catch (const R::Error& error) {
         printf("FAILURE: uncaught expception: %s\n", error.message.c_str());
         return 1;

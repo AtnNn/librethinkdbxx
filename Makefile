@@ -40,9 +40,10 @@ build/gen/upstream_tests.cc: test/yaml_to_cxx.py
 	python3 test/yaml_to_cxx.py test/upstream > $@
 
 test_sources = test/testlib.cc test/test.cc build/gen/upstream_tests.cc
-build/test: $(test_sources) build/librethinkdb++.a build/include/rethinkdb.h
+build/test: $(test_sources) test/testlib.h build/librethinkdb++.a build/include/rethinkdb.h
 	$(CXX) $(CXXFLAGS) -o $@ -isystem build/include -I test $(test_sources) build/librethinkdb++.a
 
+.PHONY: test
 test: build/test
 	build/test
 

@@ -8,24 +8,29 @@ namespace RethinkDB {
 
 using TT = Protocol::Term::TermType;
 
-Datum datum_to_query_t::operator() (const Array& array) {
-    Array copy;
-    copy.reserve(array.size());
-    for (const auto& it : array) {
-        copy.emplace_back(it.apply<Datum>(*this));
+struct {
+    Datum operator() (const Array& array) {
+        Array copy;
+        copy.reserve(array.size());
+        for (const auto& it : array) {
+            copy.emplace_back(it.apply<Datum>(*this));
+        }
+        return Datum(Array{TT::MAKE_ARRAY, std::move(copy)});
     }
-    return Datum(Array{TT::MAKE_ARRAY, std::move(copy)});
-}
-
-Datum datum_to_query_t::operator() (const Object& object) {
-    Object copy;
-    for (const auto& it : object) {
-        copy.emplace(it.first, it.second.apply<Datum>(*this));
+    Datum operator() (const Object& object) {
+        Object copy;
+        for (const auto& it : object) {
+            copy.emplace(it.first, it.second.apply<Datum>(*this));
+        }
+        return std::move(copy);
     }
-    return std::move(copy);
-}
+    template<class T>
+    Datum operator() (T&& atomic) {
+        return Datum(std::forward<T>(atomic));
+    }
+} datum_to_query;
 
-datum_to_query_t datum_to_query;
+Query::Query(Datum&& datum_) : datum(datum_.apply<Datum>(datum_to_query)) { }
 
 Datum Query::run(Connection& conn) {
     if (!free_vars.empty()) {
@@ -142,10 +147,10 @@ Datum Query::alpha_rename(Query&& query) {
     }
     
     std::map<int, int> subst;
-    for (auto it = query.free_vars.begin(); it != query.free_vars.end(); ) {
+    for (auto it = query.free_vars.begin(); it != query.free_vars.end(); ++it) {
         auto var = free_vars.find(it->first);
         if (var == free_vars.end()) {
-            free_vars.insert(*it);
+            free_vars.emplace(it->first, it->second);
         } else if (var->second != it->second) {
             int id = new_var_id(free_vars);
             subst.emplace(it->first, id);
@@ -173,9 +178,14 @@ C0_IMPL(error, ERROR)
 C0_IMPL(uuid, UUID)
 C0_IMPL(literal, LITERAL)
 CO0_IMPL(wait, WAIT)
+C0_IMPL(rebalance, REBALANCE)
 
 Query row(TT::IMPLICIT_VAR, {});
 Query minval(TT::MAXVAL, {});
 Query maxval(TT::MINVAL, {});
+
+Query binary(const std::string& data) {
+    return expr(Binary(data));
+}
 
 }
