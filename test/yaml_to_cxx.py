@@ -314,16 +314,15 @@ def python_tests(tests):
             py = get(test['def'], ['py', 'cd'], test['def'])
             if py and type(py) is not dict:
                 yield py_str(py), None, 'def'
-        else:
-            py = get(test, ['py', 'cd'], None)
-            if py:
-                if isinstance(py, "".__class__):
-                    yield py, ot, 'query'
-                elif type(py) is dict and 'cd' in py:
-                    yield py_str(py['cd']), ot, 'query'
-                else:
-                    for t in py:
-                        yield py_str(t), ot, 'query'
+        py = get(test, ['py', 'cd'], None)
+        if py:
+            if isinstance(py, "".__class__):
+                yield py, ot, 'query'
+            elif type(py) is dict and 'cd' in py:
+                yield py_str(py['cd']), ot, 'query'
+            else:
+                for t in py:
+                    yield py_str(t), ot, 'query'
 
 def maybe_discard(py, ot):
     if ot is None:
@@ -369,7 +368,7 @@ for py, ot, tp in python_tests(data["tests"]):
         elif ot:
             p("TEST_EQ(%s.run(*conn), (%s));" % (convert(py, 2, name, 'query'), convert(ot, 17, name, 'datum')))
         else:
-            p("%s.run(*conn);" % convert(py, 2, name, 'query'))
+            p("TEST_DO(%s.run(*conn));" % convert(py, 2, name, 'query'))
     except Discard:
         pass
     except Unhandled as e:

@@ -15,7 +15,6 @@ skip_tests += geo # geo
 
 # TODO
 # test_filter = datum/binary
-# test_filter = transformation
 # test_filter = math_logic/comparison
 # test_filter = math_logic/logic
 # test_filter = control

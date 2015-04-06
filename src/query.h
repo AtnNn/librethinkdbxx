@@ -297,7 +297,7 @@ public:
         return Query(std::move(*this), std::move(optargs));
     }
 
-    // TODO: binary
+    static Query make_object(std::vector<Query>&&);
 
 private:
     friend class Var;
@@ -443,7 +443,6 @@ C1(geojson, GEOJSON, no_wrap)
 C_(line, LINE)
 C2(point, POINT)
 C_(polygon, POLYGON)
-C_(object, OBJECT)
 C_(array, MAKE_ARRAY)
 C1(desc, DESC, func_wrap)
 C1(asc, ASC, func_wrap)
@@ -470,6 +469,12 @@ template <class R, class ...T>
 Query do_(R&& a, T&& ...b) {
     return expr(std::forward<R>(a)).do_(std::forward<T>(b)...);
 }
+
+template <class ...T>
+Query object(T&& ...a) {
+    return Query::make_object(std::vector<Query>{ expr(std::forward<T>(a))... });
+}
+
 
 extern Query row;
 extern Query maxval;

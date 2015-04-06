@@ -237,4 +237,20 @@ Query Query::func_wrap(const Query& query) {
     return query;
 }
 
+Query Query::make_object(std::vector<Query>&& args) {
+    Query ret{Nil()};
+    Object object;
+    for (auto it = args.begin(); ; it += 2) {
+        if (it == args.end()) {
+            ret.datum = std::move(object);
+            return ret;
+        }
+        if (it + 1 == args.end()) break;
+        std::string* key = it->datum.get_string();
+        if (!key) break;
+        object.emplace(std::move(*key), ret.alpha_rename(std::move(*(it + 1))));
+    }
+    return Query(TT::OBJECT, std::move(args));
+}
+
 }
