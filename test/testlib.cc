@@ -121,7 +121,8 @@ bool equal(const R::Datum& got, const R::Object& expected) {
 bool equal(const R::Datum& got, const R::Datum& expected) {
     if (got.get_object() && got.get_field("$reql_type$")) {
         const std::string* type = got.get_field("$reql_type$")->get_string();
-        if (type && *type == "GROUPED_DATA") {
+        if (type && *type == "GROUPED_DATA" &&
+            (!expected.get_object() || !expected.get_field("$reql_type$"))) {
             const R::Array* data = got.get_field("data")->get_array();
             R::Object object;
             for (R::Datum it : *data) {
