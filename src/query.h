@@ -24,7 +24,8 @@ public:
     Query(const Query& other) : free_vars(other.free_vars), datum(other.datum) { }
     Query(Query&& other) : free_vars(std::move(other.free_vars)), datum(std::move(other.datum)) { }
 
-    explicit Query(Datum&& a);
+    explicit Query(Datum&&);
+    explicit Query(OptArgs&&);
 
     Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
     Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
@@ -278,7 +279,7 @@ public:
 #undef CO1
 #undef CO2
 
-    Cursor run(Connection&);
+    Cursor run(Connection&, OptArgs&& args = {});
 
     template <class ...T>
     Query do_(T&& ...a) && {
@@ -477,6 +478,15 @@ Query object(T&& ...a) {
 template <class T>
 Query binary(T&& a) {
     return Query::make_binary(expr(std::forward<T>(a)));
+}
+
+OptArgs optargs();
+
+template <class V, class ...T>
+OptArgs optargs(const char* key, V&& val, T&& ...rest) {
+    OptArgs opts = optargs(rest...);
+    opts.emplace(key, expr(std::forward<V>(val)));
+    return opts;
 }
 
 extern Query row;

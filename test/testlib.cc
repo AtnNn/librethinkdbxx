@@ -117,6 +117,9 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             return *binary == R::Binary(*string);
         }
     }
+    if (expected.get_object() && expected.get_field("$reql_type$")) {
+        return equal(got, expected.from_raw());
+    }
     if (got.get_object() && got.get_field("$reql_type$")) {
         const std::string* type = got.get_field("$reql_type$")->get_string();
         if (type && *type == "GROUPED_DATA" &&

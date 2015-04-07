@@ -145,8 +145,8 @@ public:
     int compare(const Datum&) const;
     bool operator== (const Datum&) const;
 
-    Datum to_raw();
-    Datum from_raw();
+    Datum to_raw() const;
+    Datum from_raw() const;
 
 private:
 

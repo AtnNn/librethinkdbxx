@@ -261,16 +261,16 @@ bool Datum::operator== (const Datum& other) const {
     return compare(other) == 0;
 }
 
-Datum Datum::from_raw() {
+Datum Datum::from_raw() const {
     do {
-        Datum* type_field = get_field("$reql_type$");
+        const Datum* type_field = get_field("$reql_type$");
         if (!type_field) break;
-        std::string* type = type_field->get_string();
+        const std::string* type = type_field->get_string();
         if (!type) break;;
         if (!strcmp(type->c_str(), "BINARY")) {
-            Datum* data_field = get_field("data");
+            const Datum* data_field = get_field("data");
             if (!data_field) break;
-            std::string* encoded_data = data_field->get_string();
+            const std::string* encoded_data = data_field->get_string();
             if (!encoded_data) break;
             Binary binary("");
             if (base64_decode(*encoded_data, binary.data)) {
@@ -281,7 +281,7 @@ Datum Datum::from_raw() {
     return *this;
 }
 
-Datum Datum::to_raw() {
+Datum Datum::to_raw() const {
     if (type == Type::BINARY) {
         return Object{
             {"$reql_type$", "BINARY"},

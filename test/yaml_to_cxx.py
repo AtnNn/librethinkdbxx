@@ -311,6 +311,7 @@ def get(o, ks, d):
     
 def python_tests(tests):
     for test in tests:
+        runopts = get(test, ['runopts'], None)
         try:
             ot = py_str(get(test['ot'], ['py', 'cd'], test['ot']))
         except:
@@ -321,16 +322,16 @@ def python_tests(tests):
         if 'def' in test:
             py = get(test['def'], ['py', 'cd'], test['def'])
             if py and type(py) is not dict:
-                yield py_str(py), None, 'def'
+                yield py_str(py), None, 'def', runopts
         py = get(test, ['py', 'cd'], None)
         if py:
             if isinstance(py, "".__class__):
-                yield py, ot, 'query'
+                yield py, ot, 'query', runopts
             elif type(py) is dict and 'cd' in py:
-                yield py_str(py['cd']), ot, 'query'
+                yield py_str(py['cd']), ot, 'query', runopts
             else:
                 for t in py:
-                    yield py_str(t), ot, 'query'
+                    yield py_str(t), ot, 'query', runopts
 
 def maybe_discard(py, ot):
     if ot is None:
@@ -354,10 +355,14 @@ if 'table_variable_name' in data:
         p("R::Query %s = %s_table.table();" % (var, var))
 
 defined = []
-for py, ot, tp in python_tests(data["tests"]):
+for py, ot, tp, runopts in python_tests(data["tests"]):
     try:
         maybe_discard(py, ot)
         assignment = match("^(\w+) *= *([^=].*)$", py)
+        if runopts:
+            args = ", R::optargs(" + ', '.join(['"' + k + '", ' + convert(runopts[k], 17, name, 'value') for k in runopts]) + ")"
+        else:
+            args = ''
         if assignment:
             var = assignment.group(1)
             if var == 'float_max':
@@ -370,7 +375,7 @@ for py, ot, tp in python_tests(data["tests"]):
                     post = ""
                 else:
                     val = convert(assignment.group(2), 15, name, 'query')
-                    post = ".run_cursor(*conn)"
+                    post = ".run(*conn" + args + ")"
             if var in defined:
                 dvar = var
             else:
@@ -378,9 +383,9 @@ for py, ot, tp in python_tests(data["tests"]):
                 dvar = "auto " + var
             p("TEST_DO(" + dvar + " = (" + val + post + "));")
         elif ot:
-            p("TEST_EQ(%s.run(*conn), (%s));" % (convert(py, 2, name, 'query'), convert(ot, 17, name, 'datum')))
+            p("TEST_EQ(%s.run(*conn%s), (%s));" % (convert(py, 2, name, 'query'), args, convert(ot, 17, name, 'datum')))
         else:
-            p("TEST_DO(%s.run(*conn));" % convert(py, 2, name, 'query'))
+            p("TEST_DO(%s.run(*conn%s));" % (convert(py, 2, name, 'query'), args))
     except Discard:
         pass
     except Unhandled as e:
