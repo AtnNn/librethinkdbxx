@@ -39,14 +39,14 @@ void test_reql() {
 
 void test_cursor() {
     enter_section("cursor");
-    R::Cursor cursor = R::range(10000).run_cursor(*conn);
+    R::Cursor cursor = R::range(10000).run(*conn);
     TEST_EQ(cursor.next(), 0);
     R::Array array = cursor.to_array();
     TEST_EQ(array.size(), 9999);
     TEST_EQ(*array.begin(), 1);
     TEST_EQ(*array.rbegin(), 9999);
     int i = 0;
-    R::range(3).run_cursor(*conn).each([&i](R::Datum&& datum){
+    R::range(3).run(*conn).each([&i](R::Datum&& datum){
             TEST_EQ(datum, i++); });
     exit_section();
 }
@@ -55,10 +55,18 @@ void test_encode(const char* str, const char* b) {
     TEST_EQ(R::base64_encode(str), b);
 }
 
+void test_decode(const char* b, const char* str) {
+    std::string out;
+    TEST_EQ(R::base64_decode(b, out), true);
+    TEST_EQ(out, str);
+}
+
+#define TEST_B64(a, b) test_encode(a, b); test_decode(b, a)
+
 void test_binary() {
     enter_section("base64");
-    test_encode("", "");
-    test_encode("foo", "Zm9v");
+    TEST_B64("", "");
+    TEST_B64("foo", "Zm9v");
     exit_section();
 }
 
@@ -72,9 +80,9 @@ int main() {
         return 1;
     }
     try {
-        //test_binary();
-        //test_json_parse_print();
-        //test_reql();
+        test_binary();
+        test_json_parse_print();
+        test_reql();
         //test_cursor();
         run_upstream_tests();
     } catch (const R::Error& error) {

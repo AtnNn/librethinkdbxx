@@ -8,7 +8,7 @@ namespace RethinkDB {
 
 struct Error {
     template <class ...T>
-    Error(const char* format_, T... A) {
+    explicit Error(const char* format_, T... A) {
         format(format_, A...);
     }
 

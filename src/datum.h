@@ -25,12 +25,8 @@ public:
     Datum(const Binary& binary) : type(Type::BINARY), value(binary) { }
     Datum(Binary&& binary) : type(Type::BINARY), value(std::move(binary)) { }
 
-    Datum(const Object& object_) : type(Type::OBJECT), value(object_) {
-        convert_pseudo_type();
-    }
-    Datum(Object&& object_) : type(Type::OBJECT), value(std::move(object_)) {
-        convert_pseudo_type();
-    }
+    Datum(const Object& object_) : type(Type::OBJECT), value(object_) { }
+    Datum(Object&& object_) : type(Type::OBJECT), value(std::move(object_)) { }
 
     Datum(const Datum& other) : type(other.type), value(other.type, other.value) { }
     Datum(Datum&& other) : type(other.type), value(other.type, std::move(other.value)) { }
@@ -55,7 +51,8 @@ public:
     Datum(int64_t number_) : Datum(static_cast<double>(number_)) { }
     Datum(Protocol::Term::TermType type) : Datum(static_cast<double>(type)) { }
     Datum(const char* string) : Datum(static_cast<std::string>(string)) { }
-    Datum(Cursor& cursor);
+    Datum(Cursor&&);
+    Datum(const Cursor&);
 
     template <class T>
     Datum(const std::map<std::string, T>& map) : type(Type::OBJECT), value(Object()) {
@@ -149,9 +146,9 @@ public:
     bool operator== (const Datum&) const;
 
     Datum to_raw();
+    Datum from_raw();
 
 private:
-    void convert_pseudo_type();
 
     enum class Type {
         ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, BINARY, STRING

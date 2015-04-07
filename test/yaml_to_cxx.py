@@ -126,7 +126,7 @@ def to_cxx(expr, prec, ctx):
             else:
                 return "R::Object{" + ', '.join(["{" + to_cxx_str(k) + "," + to_cxx(v, 17, ctx) + "}" for k, v in zip(expr.keys, expr.values)]) + "}"
         elif t == ast.Str:
-            return string(expr.s)
+            return string(expr.s, ctx)
         elif t == ast.List:
             if ctx.type == 'query':
                 return "R::array(" + ', '.join([to_cxx(el, 17, ctx) for el in expr.elts]) + ")"
@@ -162,7 +162,7 @@ def to_cxx(expr, prec, ctx):
             op, op_prec = convert_op(expr.op)
             return parens(prec, op_prec, op + to_cxx(expr.operand, op_prec, ctx))
         elif t == ast.Bytes:
-            return string(expr.s)
+            return string(expr.s, ctx)
         elif t == ast.Tuple:
             if ctx.type == 'query':
                 return "R::array(" + ', '.join([to_cxx(el, 17, ctx) for el in expr.elts]) + ")"
@@ -238,8 +238,9 @@ def to_args(func, args, optargs, ctx):
         ret = ret + "R::OptArgs{" + ', '.join(out) + "}"
     return ret + ")"
 
-def string(s):
-    was_hex = [False]
+def string(s, ctx=None):
+    was_hex = False
+    wrap = ctx and ctx.type == 'string'
     if type(s) is str:
         def string_escape(c):
             if c == '"':
@@ -247,15 +248,19 @@ def string(s):
             if c == '\\':
                 return '\\\\'
             if c == '\n':
-                return '\\n'
+                return '\\n' 
             else:
                 return c
     elif type(s) is bytes:
         def string_escape(c):
-            if c < 32 or c > 127 or (was_hex[0] and chr(c) in "0123456789abcdefABCDEF"):
-                was_hex[0] = True
+            nonlocal wrap
+            nonlocal was_hex
+            if c == 0:
+                wrap = True
+            if c < 32 or c > 127 or (was_hex and chr(c) in "0123456789abcdefABCDEF"):
+                was_hex = True
                 return '\\x' + ('0' + hex(c)[2:])[-2:] 
-            was_hex[0] = False
+            was_hex = False
             if c == 34:
                 return '\\"'
             if c == 92:
@@ -264,7 +269,10 @@ def string(s):
                 return chr(c)
     else:
         raise Unhandled("string type: " + repr(type(s)))
-    return '"' + ''.join([string_escape(c) for c in s]) + '"'
+    e = '"' + ''.join([string_escape(c) for c in s]) + '"'
+    if wrap:
+        return "std::string(" + e + ", " + str(len(s)) + ")"
+    return e
 
 def parens(prec, in_prec, cxx):
     if in_prec >= prec:
@@ -352,19 +360,23 @@ for py, ot, tp in python_tests(data["tests"]):
         assignment = match("^(\w+) *= *([^=].*)$", py)
         if assignment:
             var = assignment.group(1)
-            if var not in defined:
-                defined.append(var);
-                dvar = "auto " + var
-            else:
-                dvar = var
             if var == 'float_max':
                 p('auto float_max = ' + repr(float_info.max) + ";")
             elif var == 'float_min':
                 p('auto float_min = ' + repr(float_info.min) + ";")
-            elif assignment and tp == 'def':
-                p("TEST_DO(" + dvar + " = (" + convert(assignment.group(2), 15, name, 'datum') + "));")
             else:
-                p("TEST_DO(" + dvar + " = (" + convert(assignment.group(2), 15, name, 'query') + ".run_cursor(*conn)));")
+                if tp == 'def':
+                    val = convert(assignment.group(2), 15, name, 'string')
+                    post = ""
+                else:
+                    val = convert(assignment.group(2), 15, name, 'query')
+                    post = ".run_cursor(*conn)"
+            if var in defined:
+                dvar = var
+            else:
+                defined.append(var);
+                dvar = "auto " + var
+            p("TEST_DO(" + dvar + " = (" + val + post + "));")
         elif ot:
             p("TEST_EQ(%s.run(*conn), (%s));" % (convert(py, 2, name, 'query'), convert(ot, 17, name, 'datum')))
         else:

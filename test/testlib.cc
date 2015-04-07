@@ -2,7 +2,7 @@
 
 #include "testlib.h"
 
-int verbosity = 1;
+int verbosity = 2;
 
 int failed = 0;
 int count = 0;
@@ -10,32 +10,12 @@ std::vector<std::pair<const char*, bool>> section;
 
 std::unique_ptr<R::Connection> conn;
 
-std::string to_string(const char* string) {
-    return string;
-}
-
 std::string to_string(const R::Datum& datum) {
     return write_datum(datum);
 }
 
-bool equal(const char* a, const char* b) {
-    return !strcmp(a, b);
-}
-
 std::string to_string(const R::Error& error) {
     return "Error(\"" + error.message + "\")";
-}
-
-std::string to_string(const R::Object& object) {
-    return write_datum(object);
-}
-
-std::string to_string(const R::Array& array) {
-    return write_datum(array);
-}
-
-std::string to_string(const R::Nil& nil) {
-    return write_datum(nil);
 }
 
 bool equal(const R::Error &a, const R::Error& b) {
@@ -61,13 +41,13 @@ std::string to_string(const err& error) {
     return "Error(\"" + error.convert_type() + ": " +  error.message + "\")";
 }
 
-bool equal(const R::Error& a, const err& b) {
+bool equal(R::Error a, const err& b) {
     return b.trim_message(a.message) == (b.convert_type() + ": " + b.message);
 }
 
 bool match(const char* pattern, const char* string) {
     try {
-        return !R::expr(string).match(pattern).run(*conn).is_nil();
+        return !R::expr(string).match(pattern).run(*conn).to_datum().is_nil();
     } catch (const R::Error&) {
         return false;
     }
@@ -129,12 +109,14 @@ std::string string_key(const R::Datum& datum) {
 }
 
 
-bool equal(const R::Datum& got, const R::Object& expected) {
-    return equal(got, R::Datum(expected));
-}
-
-
 bool equal(const R::Datum& got, const R::Datum& expected) {
+    const std::string* string = expected.get_string();
+    if (string) {
+        const R::Binary* binary = got.get_binary();
+        if (binary) {
+            return *binary == R::Binary(*string);
+        }
+    }
     if (got.get_object() && got.get_field("$reql_type$")) {
         const std::string* type = got.get_field("$reql_type$")->get_string();
         if (type && *type == "GROUPED_DATA" &&

@@ -17,54 +17,6 @@ extern int verbosity;
 
 const char* indent();
 
-std::string to_string(const char*);
-std::string to_string(const R::Datum&);
-
-template <class T>
-std::string to_string(T a) {
-    std::ostringstream s;
-    s << a;
-    return s.str();
-}
-
-std::string to_string(const R::Error& error);
-std::string to_string(const R::Object& object);
-std::string to_string(const R::Array& array);
-std::string to_string(const R::Nil& nil);
-
-bool equal(const R::Datum& a, const R::Datum& b);
-
-template <class T>
-bool equal(T a, const R::Error& b) {
-    return false;
-}
-
-template <class T>
-bool equal(const R::Error& a, T b) {
-    return false;
-}
-
-bool equal(const R::Error &a, const R::Error& b);
-bool equal(const char* a, const char* b);
-
-template <class T, class U>
-void test_eq(const char* code, T&& val, U&& expected) {
-    count ++;
-    if (!equal(val, expected)) {
-        failed++;
-        for (auto& it : section) {
-            if (it.second) {
-                printf("%sSection: %s\n", indent(), it.first);
-                it.second = false;
-            }
-        }
-        printf("%sFAILURE: in `%s':\n%s  Expected: `%s'\n%s   but got: `%s'\n",
-               indent(), code,
-               indent(), to_string(expected).c_str(),
-               indent(), to_string(val).c_str());
-    }
-}
-
 void enter_section(const char* name);
 void exit_section();
 
@@ -103,15 +55,6 @@ struct err {
     R::Array backtrace;
 };
 
-std::string to_string(const err& error);
-
-bool equal(const R::Error& a, const err& b);
-
-template <class T>
-bool equal(T a, const err& b) {
-    return false;
-}
-
 struct err_regex {
     err_regex(const char* type_, const char* message_, R::Array&& backtrace_ = {}) :
         type(type_), message(message_), backtrace(std::move(backtrace_)) { }
@@ -122,30 +65,15 @@ struct err_regex {
 
 bool match(const char* pattern, const char* string);
 
-bool equal(const R::Error& a, const err_regex& b);
-
-template <class T>
-bool equal(T a, const err_regex& b) {
-    return false;
-}
-
-std::string to_string(const err_regex& error);
 
 R::Object partial(R::Object&& object);
 R::Object partial(R::Array&& object);
-
 R::Datum uuid();
-
 R::Object arrlen(int n, R::Datum&& datum);
-
 R::Object arrlen(int n);
-
 R::Query new_table();
-
 std::string repeat(std::string&& s, int n);
-
 R::Query fetch(R::Cursor& cursor, int count);
-
 R::Object bag(R::Array&& array);
 
 struct temp_table {
@@ -164,6 +92,50 @@ struct temp_table {
     std::string name;
 };
 
-bool equal(const R::Datum& got, const R::Object& expected);
-
 void clean_slate();
+
+std::string to_string(const R::Datum&);
+std::string to_string(const R::Error&);
+std::string to_string(const err_regex&);
+std::string to_string(const err&);
+
+bool equal(const R::Datum&, const R::Datum&);
+bool equal(const R::Error&, const err_regex&);
+bool equal(R::Error, const err&);
+
+template <class B>
+bool equal(const R::Error&, B b) {
+    fprintf(stderr, "FOO\n");
+    return false;
+}
+
+template <class T>
+bool equal(T a, const err_regex& b) {
+    fprintf(stderr, "BAR\n");
+    return false;
+}
+
+template <class T>
+bool equal(T& a, const err& b) {
+    fprintf(stderr, "BAZ\n");
+    return false;
+}
+
+template <class T, class U>
+void test_eq(const char* code, T val, U expected) {
+    count ++;
+    if (!equal(val, expected)) {
+        failed++;
+        for (auto& it : section) {
+            if (it.second) {
+                printf("%sSection: %s\n", indent(), it.first);
+                it.second = false;
+            }
+        }
+        printf("%sFAILURE in ‘%s’:\n%s  Expected: ‘%s’\n%s   but got: ‘%s’\n",
+               indent(), code,
+               indent(), to_string(expected).c_str(),
+               indent(), to_string(val).c_str());
+    }
+}
+

@@ -261,21 +261,24 @@ bool Datum::operator== (const Datum& other) const {
     return compare(other) == 0;
 }
 
-void Datum::convert_pseudo_type() {
-    Datum* type_field = get_field("$reql_type$");
-    if (!type_field) return;
-    std::string* type = type_field->get_string();
-    if (!type) return;
-    if (!strcmp(type->c_str(), "BINARY")) {
-        Datum* data_field = get_field("data");
-        if (!data_field) return;
-        std::string* encoded_data = data_field->get_string();
-        if (!encoded_data) return;
-        Binary binary("");
-        if (base64_decode(*encoded_data, binary.data)) {
-            *this = std::move(binary);
+Datum Datum::from_raw() {
+    do {
+        Datum* type_field = get_field("$reql_type$");
+        if (!type_field) break;
+        std::string* type = type_field->get_string();
+        if (!type) break;;
+        if (!strcmp(type->c_str(), "BINARY")) {
+            Datum* data_field = get_field("data");
+            if (!data_field) break;
+            std::string* encoded_data = data_field->get_string();
+            if (!encoded_data) break;
+            Binary binary("");
+            if (base64_decode(*encoded_data, binary.data)) {
+                return binary;
+            }
         }
-    }
+    } while (0);
+    return *this;
 }
 
 Datum Datum::to_raw() {
@@ -287,12 +290,7 @@ Datum Datum::to_raw() {
     return *this;
 }
 
-Datum::Datum(Cursor& cursor) : Datum(Nil()) {
-    if (cursor.is_single()) {
-        *this = cursor.next();
-    } else {
-        *this = cursor.to_array();
-    }
-}
+Datum::Datum(Cursor&& cursor) : Datum(cursor.to_datum()) { }
+Datum::Datum(const Cursor& cursor) : Datum(cursor.to_datum()) { }
 
 }

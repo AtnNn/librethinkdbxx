@@ -278,8 +278,7 @@ public:
 #undef CO1
 #undef CO2
 
-    Datum run(Connection&);
-    Cursor run_cursor(Connection&);
+    Cursor run(Connection&);
 
     template <class ...T>
     Query do_(T&& ...a) && {
@@ -298,6 +297,7 @@ public:
     }
 
     static Query make_object(std::vector<Query>&&);
+    static Query make_binary(Query&&);
 
 private:
     friend class Var;
@@ -451,7 +451,6 @@ C1(literal, LITERAL, no_wrap)
 CO0(wait)
 C0(rebalance)
 C1(type_of, TYPE_OF, no_wrap)
-C1(binary, BINARY, no_wrap)
 C_(map, MAP)
 
 #undef C0
@@ -475,11 +474,13 @@ Query object(T&& ...a) {
     return Query::make_object(std::vector<Query>{ expr(std::forward<T>(a))... });
 }
 
+template <class T>
+Query binary(T&& a) {
+    return Query::make_binary(expr(std::forward<T>(a)));
+}
 
 extern Query row;
 extern Query maxval;
 extern Query minval;
-
-Query binary(const std::string& data);
 
 }

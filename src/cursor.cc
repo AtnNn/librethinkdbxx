@@ -22,33 +22,38 @@ Cursor::~Cursor() {
     }
 }
 
-Datum& Cursor::next() {
-    while (true) {
-        if (index == buffer.size()) {
-            if (no_more) {
-                throw Error("next: No more data");
-            }
-            add_response(token.wait_for_response());
-        } else {
-            return buffer[index++];
-        }
+Datum& Cursor::next() const {
+    if (!has_next()) {
+        throw Error("next: No more data");
     }
+    return buffer[index++];
 }
 
-void Cursor::each(std::function<void(Datum&&)> f) {
-    while (true) {
-        while (index == buffer.size()) {
-            if (no_more) {
-                return;
-            } else {
-                add_response(token.wait_for_response());
-            }
-        }
+void Cursor::each(std::function<void(Datum&&)> f) const {
+    while (has_next()) {
         f(std::move(buffer[index++]));
     }
 }
 
-Array Cursor::to_array() {
+void Cursor::convert_single() const {
+    if (index != 0) {
+        throw Error("Cursor: already consumed");
+    }
+    if (buffer.size() != 1) {
+        throw Error("Cursor: invalid response from server");
+    }
+    Array* array = buffer[0].get_array();
+    if (!array) {
+        throw Error("Cursor: not an array");
+    }
+    buffer = std::move(*array);
+    single = false;
+}
+
+void Cursor::clear_and_read_all() const {
+    if (single) {
+        convert_single();
+    }
     if (index != 0) {
         buffer.erase(buffer.begin(), buffer.begin() + index);
         index = 0;
@@ -56,18 +61,55 @@ Array Cursor::to_array() {
     while (!no_more) {
         add_response(token.wait_for_response());
     }
-    index = buffer.size();
+}
+
+Array&& Cursor::to_array() && {
+    clear_and_read_all();
+    return std::move(buffer);
+}
+
+Array Cursor::to_array() const & {
+    clear_and_read_all();
     return buffer;
 }
 
-void Cursor::close() {
+Datum Cursor::to_datum() const & {
+    if (single) {
+        if (index != 0) {
+            throw Error("to_datum: already consumed");
+        }
+        return buffer[0];
+    } else {
+        clear_and_read_all();
+        return buffer;
+    }
+}
+
+Datum Cursor::to_datum() && {
+    Datum ret((Nil()));
+    if (single) {
+        if (index != 0) {
+            throw Error("to_datum: already consumed");
+        }
+        ret = std::move(buffer[0]);
+    } else {
+        clear_and_read_all();
+        ret = std::move(buffer);
+    }
+    return ret;
+}
+
+void Cursor::close() const {
     token.close();
     no_more = true;
 }
 
-bool Cursor::has_next() {
+bool Cursor::has_next() const {
+    if (single) {
+        convert_single();
+    }
     while (true) {
-        if (index == buffer.size()) {
+        if (index >= buffer.size()) {
             if (no_more) {
                 return false;
             }
@@ -82,8 +124,8 @@ bool Cursor::is_single() const {
     return single;
 }
 
-void Cursor::add_results(Array&& results) {
-    if (index == buffer.size()) {
+void Cursor::add_results(Array&& results) const {
+    if (index >= buffer.size()) {
         buffer = std::move(results);
         index = 0;
     } else {
@@ -94,7 +136,7 @@ void Cursor::add_results(Array&& results) {
     }
 }
 
-void Cursor::add_response(Response&& response) {
+void Cursor::add_response(Response&& response) const {
     using RT = Protocol::Response::ResponseType;
     switch (response.type) {
     case RT::SUCCESS_SEQUENCE:

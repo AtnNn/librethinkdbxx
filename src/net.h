@@ -80,15 +80,15 @@ public:
         other.conn = NULL;
     }
 
-    void ask_for_more() {
+    void ask_for_more() const {
         conn->ask_for_more(token);
     }
 
-    Response wait_for_response() {
+    Response wait_for_response() const {
         return conn->wait_for_response(token);
     }
 
-    void close() {
+    void close() const {
         if(conn) {
             conn->close_token(token);
         }

@@ -33,38 +33,6 @@ struct {
 
 Query::Query(Datum&& datum_) : datum(datum_.apply<Datum>(datum_to_query)) { }
 
-Datum Query::run(Connection& conn) {
-    if (!free_vars.empty()) {
-        throw Error("run: query still has free variables");
-    }
-    OutputBuffer out;
-    write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Object{}}, out);
-    Token token = conn.start_query(out.buffer);
-    Response response = token.wait_for_response();
-    using RT = Protocol::Response::ResponseType;
-    Array array;
-    switch (response.type) {
-    case RT::SUCCESS_ATOM:
-        if (response.result.size() != 1) {
-            throw Error("Invalid response");
-        }
-        return Datum(std::move(response.result[0]));
-    case RT::SUCCESS_SEQUENCE:
-        return Datum(std::move(response.result));
-    case RT::SUCCESS_PARTIAL:
-        {
-            Cursor cursor(std::move(token), std::move(response));
-            return Datum(cursor.to_array());
-        }
-    case RT::WAIT_COMPLETE:
-    case RT::CLIENT_ERROR:
-    case RT::COMPILE_ERROR:
-    case RT::RUNTIME_ERROR:
-        throw response.as_error();
-    }
-    throw Error("internal error: no such response type %d", static_cast<int>(response.type));
-}
-
 Query::Query(Query&& orig, OptArgs&& new_optargs) : datum(Nil()) {
     Datum* cur = orig.datum.get_nth(2);
     Object optargs;
@@ -82,9 +50,9 @@ Query nil() {
     return Query(Nil());
 }
 
-Cursor Query::run_cursor(Connection& conn) {
+Cursor Query::run(Connection& conn) {
     if (!free_vars.empty()) {
-        throw Error("run: query still has free variables");
+        throw Error("run: query has free variables");
     }
     OutputBuffer out;
     write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Object{}}, out);
@@ -190,6 +158,14 @@ Query binary(const std::string& data) {
     return expr(Binary(data));
 }
 
+Query binary(std::string&& data) {
+    return expr(Binary(data));
+}
+
+Query binary(const char* data) {
+    return expr(Binary(data));
+}
+
 struct {
     bool operator() (const Object& object) {
         for (const auto& it : object) {
@@ -258,6 +234,14 @@ Query Query::make_object(std::vector<Query>&& args) {
     }
     ret.datum = std::move(object);
     return ret;
+}
+
+Query Query::make_binary(Query&& query) {
+    std::string* string = query.datum.get_string();
+    if (string) {
+        return expr(Binary(std::move(*string)));
+    }
+    return Query(TT::BINARY, std::vector<Query>{query});
 }
 
 }

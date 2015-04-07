@@ -14,7 +14,6 @@ skip_tests += times regression/1023 regression/2774 # time
 skip_tests += geo # geo
 
 # known failures
-skip_tests += datum/binary
 skip_tests += math_logic/comparison
 skip_tests += math_logic/logic
 skip_tests += control

@@ -125,7 +125,11 @@ Datum read_object(BufferedInputStream& stream) {
     } else {
         while (read_field(stream, &object));
     }
-    return Datum(std::move(object));
+    if (object.count("$reql_type$")) {
+        return Datum(std::move(object)).from_raw();
+    } else {
+        return Datum(std::move(object));
+    }
 }
 
 Datum read_array(BufferedInputStream& stream) {
