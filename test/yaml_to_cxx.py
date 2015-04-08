@@ -7,6 +7,8 @@ from re import sub, match, split
 from collections import namedtuple
 import ast
 
+verbosity = 1
+
 class Discard(Exception):
     pass
 
@@ -96,19 +98,26 @@ def to_cxx(expr, prec, ctx):
             assert not expr.starargs
             return to_cxx(expr.func, 2, ctx_set(ctx, context='function')) + to_args(expr.func, expr.args, expr.keywords, ctx)
         elif t == ast.Attribute:
-            if type(expr.value) is ast.Name and expr.value.id == 'r':
-                if expr.attr == 'error' and context != 'function':
-                    return "R::error()"
-                if expr.attr == 'binary':
-                    if ctx.type == 'query':
-                        return 'R::binary'
-                    else:
-                        return 'R::Binary'
-                return rename("R::" + expr.attr)
-            else:
-                if expr.attr in ['encode', 'close']:
-                    raise Discard
-                return to_cxx_expr(expr.value, 2, ctx) + "." + rename(expr.attr)
+            if type(expr.value) is ast.Name:
+                if expr.value.id == 'r':
+                    if expr.attr == 'error' and context != 'function':
+                        return "R::error()"
+                    if expr.attr == 'binary':
+                        if ctx.type == 'query':
+                            return 'R::binary'
+                        else:
+                            return 'R::Binary'
+                    return rename("R::" + expr.attr)
+                elif expr.value.id == 'datetime':
+                    if expr.attr == 'fromtimestamp':
+                        return "R::Time"
+                    elif expr.attr == 'now':
+                        return "R::Time::now"
+            if expr.attr == 'RqlTzinfo':
+                return 'R::Time::parse_utc_offset'
+            if expr.attr in ['encode', 'close']:
+                raise Discard
+            return to_cxx_expr(expr.value, 2, ctx) + "." + rename(expr.attr)
         elif t == ast.Name:
             if expr.id in ['frozenset']:
                 raise Discard()
@@ -232,6 +241,9 @@ def to_args(func, args, optargs, ctx):
     it = func
     while type(it) is ast.Attribute:
         it = it.value
+        if type(it) is ast.Call:
+            ctx = ctx_set(ctx, type='query')
+            break
     if type(it) is ast.Name and it.id == 'r':
         ctx = ctx_set(ctx, type='query')
     ret = "("
@@ -352,6 +364,8 @@ def maybe_discard(py, ot):
         raise Discard
     if match(".*Object keys must be strings", ot):
         raise Discard
+    if match(".*Got .* argument", ot):
+        raise Discard
 
 data = load(open(argv[1]).read())
 
@@ -382,7 +396,7 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
             elif var == 'float_min':
                 p('auto float_min = ' + repr(float_info.min) + ";") 
             else:
-                if tp == 'def':
+                if tp == 'def' and var not in ['bad_insert', 'trows']:
                     val = convert(assignment.group(2), 15, name, 'string')
                     post = ""
                 else:
@@ -399,6 +413,8 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
         else:
             p("TEST_DO(%s.run(*conn%s));" % (convert(py, 2, name, 'query'), args))
     except Discard:
+        if verbosity >= 1:
+            print("Discarding %s (%s)" % (repr(py), repr(ot)), file=stderr)
         pass
     except Unhandled as e:
         failed = True

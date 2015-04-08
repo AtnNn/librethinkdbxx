@@ -119,9 +119,11 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
         }
     }
     if (expected.get_object() && expected.get_field("$reql_type$")) {
-        R::Datum datum = expected.from_raw();
-        if (!datum.get_field("$reql_type$")) {
-            return equal(got, datum);
+        if (!got.get_field("$reql_type$")) {
+            R::Datum datum = got.to_raw();
+            if (datum.get_field("$reql_type$")) {
+                return equal(datum, expected);
+            }
         }
     }
     if (got.get_object() && got.get_field("$reql_type$")) {

@@ -263,4 +263,24 @@ OptArgs optargs() {
     return OptArgs{};
 }
 
+Query january(TT::JANUARY, {});
+Query february(TT::FEBRUARY, {});
+Query march(TT::MARCH, {});
+Query april(TT::APRIL, {});
+Query may(TT::MAY, {});
+Query june(TT::JUNE, {});
+Query july(TT::JULY, {});
+Query august(TT::AUGUST, {});
+Query september(TT::SEPTEMBER, {});
+Query october(TT::OCTOBER, {});
+Query november(TT::NOVEMBER, {});
+Query december(TT::DECEMBER, {});
+Query monday(TT::MONDAY, {});
+Query tuesday(TT::TUESDAY, {});
+Query wednesday(TT::WEDNESDAY, {});
+Query thursday(TT::THURSDAY, {});
+Query friday(TT::FRIDAY, {});
+Query saturday(TT::SATURDAY, {});
+Query sunday(TT::SUNDAY, {});
+
 }

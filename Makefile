@@ -10,13 +10,7 @@ d_files := $(patsubst %, build/dep/%.d, $(modules))
 skip_tests := regression/1133 regression/767 regression/1005 # python-only
 skip_tests += changefeeds/squash # double run
 skip_tests += arity # arity errors are compile-time
-skip_tests += times regression/1023 regression/2774 # time
 skip_tests += geo # geo
-
-# known failures
-skip_tests += json
-skip_tests += selection
-skip_tests += mutation/insert
 
 upstream_tests := $(filter-out $(patsubst %,test/upstream/%%, $(skip_tests)), $(filter test/upstream/$(test_filter)%,$(shell find test/upstream -name '*.yaml')))
 upstream_tests_cc := $(patsubst %.yaml, build/tests/%.cc, $(upstream_tests))

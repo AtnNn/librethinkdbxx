@@ -24,6 +24,7 @@ public:
     Datum(Array&& array_) : type(Type::ARRAY), value(std::move(array_)) { }
     Datum(const Binary& binary) : type(Type::BINARY), value(binary) { }
     Datum(Binary&& binary) : type(Type::BINARY), value(std::move(binary)) { }
+    Datum(const Time time) : type(Type::TIME), value(time) { }
 
     Datum(const Object& object_) : type(Type::OBJECT), value(object_) { }
     Datum(Object&& object_) : type(Type::OBJECT), value(std::move(object_)) { }
@@ -96,6 +97,7 @@ public:
         case Type::OBJECT: return f(value.object, std::forward<A>(args)...); break;
         case Type::ARRAY: return f(value.array, std::forward<A>(args)...); break;
         case Type::BINARY: return f(value.binary, std::forward<A>(args)...); break;
+        case Type::TIME: return f(value.time, std::forward<A>(args)...); break;
         }
         throw Error("internal error: no such datum type %d", static_cast<int>(type));
     }
@@ -110,6 +112,7 @@ public:
         case Type::OBJECT: return f(std::move(value.object), std::forward<A>(args)...); break;
         case Type::ARRAY: return f(std::move(value.array), std::forward<A>(args)...); break;
         case Type::BINARY: return f(std::move(value.binary), std::forward<A>(args)...); break;
+        case Type::TIME: return f(std::move(value.time), std::forward<A>(args)...); break;
         }
         throw Error("internal error: no such datum type %d", static_cast<int>(type));
     }
@@ -132,6 +135,8 @@ public:
     const Datum* get_nth(size_t) const;
     Binary* get_binary();
     const Binary* get_binary() const;
+    Time* get_time();
+    const Time* get_time() const;
 
     bool& extract_boolean();
     double& extract_number();
@@ -141,6 +146,7 @@ public:
     Array& extract_array();
     Datum& extract_nth(size_t);
     Binary& extract_binary();
+    Time& extract_time();
 
     int compare(const Datum&) const;
     bool operator== (const Datum&) const;
@@ -151,8 +157,8 @@ public:
 private:
 
     enum class Type {
-        ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, BINARY, STRING
-        // TIME, POINT, LINE, POLYGON
+        ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, BINARY, STRING, TIME
+        // POINT, LINE, POLYGON
     };
     Type type;
 
@@ -163,6 +169,7 @@ private:
         Object object;
         Array array;
         Binary binary;
+        Time time;
 
         datum_value() { }
         datum_value(bool boolean_) : boolean(boolean_) { }
@@ -175,6 +182,7 @@ private:
         datum_value(Array&& array_) : array(std::move(array_)) { }
         datum_value(const Binary& binary_) : binary(binary_) { }
         datum_value(Binary&& binary_) : binary(std::move(binary_)) { }
+        datum_value(Time time) : time(std::move(time)) { }
 
         datum_value(Type type, const datum_value& other){
             set(type, other);
@@ -193,6 +201,7 @@ private:
             case Type::OBJECT: new (this) Object(std::move(other.object)); break;
             case Type::ARRAY: new (this) Array(std::move(other.array)); break;
             case Type::BINARY: new (this) Binary(std::move(other.binary)); break;
+            case Type::TIME: new (this) Time(std::move(other.time)); break;
             }
         }
 
@@ -205,6 +214,7 @@ private:
             case Type::OBJECT: new (this) Object(other.object); break;
             case Type::ARRAY: new (this) Array(other.array); break;
             case Type::BINARY: new (this) Binary(other.binary); break;
+            case Type::TIME: new (this) Time(other.time); break;
             }
         }
 
@@ -217,6 +227,7 @@ private:
             case Type::OBJECT: object.~Object(); break;
             case Type::ARRAY: array.~Array(); break;
             case Type::BINARY: binary.~Binary(); break;
+            case Type::TIME: time.~Time(); break;
             } 
         }
 

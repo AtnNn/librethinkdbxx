@@ -141,3 +141,5 @@ void test_eq(const char* code, const T val, const U expected) {
     }
 }
 
+#define PacificTimeZone() (-7 * 3600)
+#define UTCTimeZone() (0)

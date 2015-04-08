@@ -492,5 +492,23 @@ OptArgs optargs(const char* key, V&& val, T&& ...rest) {
 extern Query row;
 extern Query maxval;
 extern Query minval;
-
+extern Query january;
+extern Query february;
+extern Query march;
+extern Query april;
+extern Query may;
+extern Query june;
+extern Query july;
+extern Query august;
+extern Query september;
+extern Query october;
+extern Query november;
+extern Query december;
+extern Query monday;
+extern Query tuesday;
+extern Query wednesday;
+extern Query thursday;
+extern Query friday;
+extern Query saturday;
+extern Query sunday;
 }

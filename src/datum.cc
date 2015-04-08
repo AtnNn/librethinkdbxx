@@ -150,6 +150,22 @@ const Binary* Datum::get_binary() const {
     }
 }
 
+Time* Datum::get_time() {
+    if (type == Type::TIME) {
+        return &value.time;
+    } else {
+        return NULL;
+    }
+}
+
+const Time* Datum::get_time() const {
+    if (type == Type::TIME) {
+        return &value.time;
+    } else {
+        return NULL;
+    }
+}
+
 bool& Datum::extract_boolean() {
     if (type != Type::BOOLEAN) {
         throw Error("extract_bool: Not a boolean");
@@ -213,6 +229,13 @@ Binary& Datum::extract_binary() {
     return value.binary;
 }
 
+Time& Datum::extract_time() {
+    if (type != Type::TIME) {
+        throw Error("get_time: Not a time");
+    }
+    return value.time;
+}
+
 int Datum::compare(const Datum& other) const {
 #define COMPARE(a, b) do {          \
     if (a < b) { return -1; }       \
@@ -232,6 +255,10 @@ int Datum::compare(const Datum& other) const {
     case Type::BINARY:
         c = value.binary.data.compare(other.value.binary.data);
         COMPARE(c, 0);
+        break;
+    case Type::TIME:
+        COMPARE(value.time.epoch_time, other.value.time.epoch_time);
+        COMPARE(value.time.utc_offset, other.value.time.utc_offset);
         break;
     case Type::ARRAY:
         COMPARE_OTHER(value.array.size());
@@ -276,6 +303,18 @@ Datum Datum::from_raw() const {
             if (base64_decode(*encoded_data, binary.data)) {
                 return binary;
             }
+        } else if (!strcmp(type->c_str(), "TIME")) {
+            const Datum* epoch_field = get_field("epoch_time");
+            if (!epoch_field) break;
+            const Datum* tz_field = get_field("timezone");
+            if (!tz_field) break;
+            const double* epoch_time = epoch_field->get_number();
+            if (!epoch_time) break;
+            const std::string* tz  = tz_field->get_string();
+            if (!tz) break;
+            double offset;
+            if (!Time::parse_utc_offset(*tz, &offset)) break;
+            return Time(*epoch_time, offset);
         }
     } while (0);
     return *this;
@@ -286,6 +325,11 @@ Datum Datum::to_raw() const {
         return Object{
             {"$reql_type$", "BINARY"},
             {"data", base64_encode(value.binary.data)}};
+    } else if (type == Type::TIME) {
+        return Object{
+            {"$reql_type$", "TIME"},
+            {"epoch_time", value.time.epoch_time},
+            {"timezone", Time::utc_offset_string(value.time.utc_offset)}};
     }
     return *this;
 }
