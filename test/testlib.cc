@@ -2,7 +2,7 @@
 
 #include "testlib.h"
 
-int verbosity = 2;
+int verbosity = 1;
 
 int failed = 0;
 int count = 0;
@@ -17,12 +17,6 @@ std::string to_string(const R::Datum& datum) {
 std::string to_string(const R::Error& error) {
     return "Error(\"" + error.message + "\")";
 }
-
-bool equal(const R::Error &a, const R::Error& b) {
-    return a.message == b.message;
-}
-
-bool equal(const char* a, const char* b);
 
 void enter_section(const char* name) {
     if (verbosity == 0) {
@@ -41,7 +35,7 @@ std::string to_string(const err& error) {
     return "Error(\"" + error.convert_type() + ": " +  error.message + "\")";
 }
 
-bool equal(R::Error a, const err& b) {
+bool equal(const R::Error& a, const err& b) {
     return b.trim_message(a.message) == (b.convert_type() + ": " + b.message);
 }
 
@@ -118,7 +112,10 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
         }
     }
     if (expected.get_object() && expected.get_field("$reql_type$")) {
-        return equal(got, expected.from_raw());
+        R::Datum datum = expected.from_raw();
+        if (!datum.get_field("$reql_type$")) {
+            return equal(got, datum);
+        }
     }
     if (got.get_object() && got.get_field("$reql_type$")) {
         const std::string* type = got.get_field("$reql_type$")->get_string();
@@ -222,6 +219,7 @@ R::Object partial(R::Array&& array) {
 }
 
 void clean_slate() {
+    R::table_list().for_each([](R::Var t){ return R::table_drop(*t); });
     R::db("rethinkdb").table("_debug_scratch").delete_().run(*conn);
 }
 

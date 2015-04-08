@@ -360,7 +360,7 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
         maybe_discard(py, ot)
         assignment = match("^(\w+) *= *([^=].*)$", py)
         if runopts:
-            args = ", R::optargs(" + ', '.join(['"' + k + '", ' + convert(runopts[k], 17, name, 'value') for k in runopts]) + ")"
+            args = ", R::optargs(" + ', '.join(['"' + k + '", ' + convert(py_str(runopts[k]), 17, name, 'value') for k in runopts]) + ")"
         else:
             args = ''
         if assignment:
@@ -368,7 +368,7 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
             if var == 'float_max':
                 p('auto float_max = ' + repr(float_info.max) + ";")
             elif var == 'float_min':
-                p('auto float_min = ' + repr(float_info.min) + ";")
+                p('auto float_min = ' + repr(float_info.min) + ";") 
             else:
                 if tp == 'def':
                     val = convert(assignment.group(2), 15, name, 'string')
@@ -376,12 +376,12 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
                 else:
                     val = convert(assignment.group(2), 15, name, 'query')
                     post = ".run(*conn" + args + ")"
-            if var in defined:
-                dvar = var
-            else:
-                defined.append(var);
-                dvar = "auto " + var
-            p("TEST_DO(" + dvar + " = (" + val + post + "));")
+                if var in defined:
+                    dvar = var
+                else:
+                    defined.append(var);
+                    dvar = "auto " + var
+                p("TEST_DO(" + dvar + " = (" + val + post + "));")
         elif ot:
             p("TEST_EQ(%s.run(*conn%s), (%s));" % (convert(py, 2, name, 'query'), args, convert(ot, 17, name, 'datum')))
         else:

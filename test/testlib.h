@@ -32,7 +32,7 @@ void exit_section();
     } while (0)
 
 struct err {
-    err(const char* type_, const char* message_, R::Array&& backtrace_ = {}) :
+    err(const char* type_, std::string message_, R::Array&& backtrace_ = {}) :
         type(type_), message(message_), backtrace(std::move(backtrace_)) { }
 
     std::string convert_type() const {
@@ -101,28 +101,26 @@ std::string to_string(const err&);
 
 bool equal(const R::Datum&, const R::Datum&);
 bool equal(const R::Error&, const err_regex&);
-bool equal(R::Error, const err&);
+bool equal(const R::Error&, const err&);
 
-template <class B>
-bool equal(const R::Error&, B b) {
-    fprintf(stderr, "FOO\n");
+template <class T>
+bool equal(const T& a, const err& b) {
     return false;
 }
 
 template <class T>
-bool equal(T a, const err_regex& b) {
-    fprintf(stderr, "BAR\n");
+bool equal(const T& a, const err_regex& b) {
     return false;
 }
 
 template <class T>
-bool equal(T& a, const err& b) {
-    fprintf(stderr, "BAZ\n");
+bool equal(const R::Error& a, const T& b) {
     return false;
 }
+
 
 template <class T, class U>
-void test_eq(const char* code, T val, U expected) {
+void test_eq(const char* code, const T val, const U expected) {
     count ++;
     if (!equal(val, expected)) {
         failed++;
