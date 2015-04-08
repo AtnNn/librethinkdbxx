@@ -9,6 +9,7 @@ public:
     Cursor(Token&&);
     Cursor(Token&&, Response&&);
     Cursor(Cursor&&) = default;
+    Cursor(Token&&, Datum&&);
 
     ~Cursor();
 

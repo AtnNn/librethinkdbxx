@@ -57,6 +57,13 @@ Cursor Query::run(Connection& conn, OptArgs&& opts) {
     OutputBuffer out;
     write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Query(std::move(opts)).datum}, out);
     Token token = conn.start_query(out.buffer);
+    auto it = opts.find("noreply");
+    if (it != opts.end()) {
+        bool* no_reply = it->second.datum.get_boolean();
+        if (no_reply && *no_reply) {
+            return Cursor(std::move(token), Nil());
+        }
+    }
     return Cursor(std::move(token));
 }
 

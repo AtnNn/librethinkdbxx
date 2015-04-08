@@ -227,3 +227,10 @@ const char* indent() {
     static const char spaces[] = "                                       ";
     return spaces + sizeof(spaces) - 1 - 2 * section.size();
 }
+
+std::string truncate(std::string&& string) {
+    if (string.size() > 200) {
+        return string.substr(0, 197) + "...";
+    }
+    return string;
+}

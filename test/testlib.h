@@ -39,6 +39,9 @@ struct err {
         if (type == "RqlRuntimeError") {
             return "runtime error";
         }
+        if (type == "RqlCompileError") {
+            return "compile error";
+        }
         return type;
     }
 
@@ -118,6 +121,7 @@ bool equal(const R::Error& a, const T& b) {
     return false;
 }
 
+std::string truncate(std::string&&);
 
 template <class T, class U>
 void test_eq(const char* code, const T val, const U expected) {
@@ -132,8 +136,8 @@ void test_eq(const char* code, const T val, const U expected) {
         }
         printf("%sFAILURE in ‘%s’:\n%s  Expected: ‘%s’\n%s   but got: ‘%s’\n",
                indent(), code,
-               indent(), to_string(expected).c_str(),
-               indent(), to_string(val).c_str());
+               indent(), truncate(to_string(expected)).c_str(),
+               indent(), truncate(to_string(val)).c_str());
     }
 }
 

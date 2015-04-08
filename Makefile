@@ -14,16 +14,6 @@ skip_tests += times regression/1023 regression/2774 # time
 skip_tests += geo # geo
 
 # known failures
-skip_tests += math_logic/comparison
-skip_tests += math_logic/logic
-skip_tests += control
-skip_tests += arraylimits
-skip_tests += regression/283
-skip_tests += regression/370
-skip_tests += regression/2930 # huge output kills emacs
-skip_tests += regression/2052
-skip_tests += regression/632
-skip_tests += regression/715
 skip_tests += regression/469
 skip_tests += sindex/status
 skip_tests += transform/map

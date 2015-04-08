@@ -340,6 +340,10 @@ def maybe_discard(py, ot):
         raise Discard
     if match(".*argument .* must", ot):
         raise Discard
+    if match(".*infix bitwise", ot):
+        raise Discard
+    if match(".*Object keys must be strings", ot):
+        raise Discard
 
 data = load(open(argv[1]).read())
 

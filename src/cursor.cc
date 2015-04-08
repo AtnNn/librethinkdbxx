@@ -16,6 +16,9 @@ Cursor::Cursor(Token&& token_, Response&& response) : token(std::move(token_)) {
     }
 }
 
+Cursor::Cursor(Token&& token_, Datum&& datum) :
+    single(true), no_more(true), buffer(Array{std::move(datum)}), token(std::move(token_)) { }
+
 Cursor::~Cursor() {
     if (!no_more) {
         close();
