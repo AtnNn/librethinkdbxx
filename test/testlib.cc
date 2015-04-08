@@ -102,6 +102,13 @@ std::string string_key(const R::Datum& datum) {
     return write_datum(datum);
 }
 
+bool falsey(R::Datum&& datum) {
+    bool* boolean = datum.get_boolean();
+    if (boolean) return !*boolean;
+    double* number = datum.get_number();
+    if (number) return *number == 0;
+    return false;
+}
 
 bool equal(const R::Datum& got, const R::Datum& expected) {
     const std::string* string = expected.get_string();
@@ -133,6 +140,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
         if (!expected.get_object()) break;
         if(!expected.get_field("special")) break;
         const std::string* type = expected.get_field("special")->get_string();
+        if (!type) break;
         if (*type == "bag") {
             const R::Datum* bag_datum = expected.get_field("bag");
             if (!bag_datum || !bag_datum->get_array()) break;
@@ -187,16 +195,27 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
                 }
                 return true;
             }
+        } else if(*type == "uuid") {
+            const std::string* string = got.get_string();
+            if (string && string->size() == 36) {
+                return true;
+            }
         }
     } while(0);
     const R::Object* got_object = got.get_object();
     const R::Object* expected_object = expected.get_object();
     if (got_object && expected_object) {
-        if (got_object->size() != expected_object->size()) return false;
-        for (const auto& it : *got_object) {
-            auto other = expected_object->find(it.first);
-            if (other == expected_object->end()) return false;
-            if (!equal(it.second, other->second)) return false;
+        R::Object have = *got_object;
+        for (const auto& it : *expected_object) {
+            auto other = have.find(it.first);
+            if (other == have.end()) return false;
+            if (!equal(other->second, it.second)) return false;
+            have.erase(other);
+        }
+        for (auto& it : have) {
+            if (!falsey(std::move(it.second))) {
+                return false;
+            }
         }
         return true;
     }

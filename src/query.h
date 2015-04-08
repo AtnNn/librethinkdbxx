@@ -385,8 +385,8 @@ void Query::set_function(F f) {
         expr(std::forward<A>(a)), expr(std::forward<B>(b)), expr(std::forward<C>(c)), \
         expr(std::forward<D>(d)), expr(std::forward<E>(e)), expr(std::forward<F>(f)), \
             expr(std::forward<G>(g))}); }
-#define C_(name, type) template <class ...T> Query name(T&& ...a) { \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a))... }); }
+#define C_(name, type, wrap) template <class ...T> Query name(T&& ...a) {    \
+        return Query(TT::type, std::vector<Query>{ wrap(expr(std::forward<T>(a)))... }); }
 #define CO1(name, type, wrap) template <class T> Query name(T&& a, OptArgs&& optarg = {}) {       \
         return Query(TT::type, std::vector<Query>{ wrap(expr(std::forward<T>(a)))}, std::move(optarg)); }
 #define CO2(name, type) template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) { \
@@ -406,13 +406,13 @@ C1(table_drop, TABLE_DROP, no_wrap)
 C0(table_list)
 C1(db, DB, no_wrap)
 CO1(table, TABLE, no_wrap)
-C_(add, ADD)
+C_(add, ADD, no_wrap)
 C2(sub, SUB)
-C_(mul, MUL)
+C_(mul, MUL, no_wrap)
 C2(div, DIV)
 C2(mod, MOD)
-C_(and_, AND)
-C_(or_, OR)
+C_(and_, AND, no_wrap)
+C_(or_, OR, no_wrap)
 C2(eq, EQ)
 C2(ne, NE)
 C2(gt, GT)
@@ -441,10 +441,10 @@ CO1(http, HTTP, func_wrap)
 C0(uuid)
 CO2(circle, CIRCLE)
 C1(geojson, GEOJSON, no_wrap)
-C_(line, LINE)
+C_(line, LINE, no_wrap)
 C2(point, POINT)
-C_(polygon, POLYGON)
-C_(array, MAKE_ARRAY)
+C_(polygon, POLYGON, no_wrap)
+C_(array, MAKE_ARRAY, no_wrap)
 C1(desc, DESC, func_wrap)
 C1(asc, ASC, func_wrap)
 C0(literal)
@@ -452,7 +452,7 @@ C1(literal, LITERAL, no_wrap)
 CO0(wait)
 C0(rebalance)
 C1(type_of, TYPE_OF, no_wrap)
-C_(map, MAP)
+C_(map, MAP, func_wrap)
 
 #undef C0
 #undef C1

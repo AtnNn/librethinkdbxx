@@ -29,6 +29,13 @@ def convert(python, prec, file, type):
         raise Unhandled("syntax error: " + str(e) + ": " + python)
 
 def py_str(py):
+    def maybe_unstr(s):
+        if '(' in s:
+            return s
+        else:
+            return repr(s)
+    if type(py) is dict:
+        return '{' + ', '.join([repr(k) + ': ' + maybe_str(py[k]) for k in py]) + '}'
     if not isinstance(py, "".__class__):
             return repr(py)
     return py
@@ -73,6 +80,7 @@ def to_cxx_expr(expr, prec, ctx):
         if type(expr) in [ast.Str, ast.Num] or is_null(expr) or is_bool(expr):
             return "R::expr(" + to_cxx(expr, 17, ctx) + ")"
     return to_cxx(expr, prec, ctx)
+
 def to_cxx(expr, prec, ctx):
     context = ctx.context
     ctx = Ctx(vars=ctx.vars, type=ctx.type, context=None)
@@ -124,7 +132,7 @@ def to_cxx(expr, prec, ctx):
             if ctx.type == 'query':
                 return "R::object(" + ', '.join([to_cxx(k, 17, ctx) + ", " + to_cxx(v, 17, ctx) for k, v in zip(expr.keys, expr.values)]) + ")"
             else:
-                return "R::Object{" + ', '.join(["{" + to_cxx_str(k) + "," + to_cxx(v, 17, ctx) + "}" for k, v in zip(expr.keys, expr.values)]) + "}"
+                return "R::Object{" + ', '.join(["{" + to_cxx_str(k) + ", " + to_cxx(v, 17, ctx) + "}" for k, v in zip(expr.keys, expr.values)]) + "}"
         elif t == ast.Str:
             return string(expr.s, ctx)
         elif t == ast.List:

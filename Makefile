@@ -14,11 +14,6 @@ skip_tests += times regression/1023 regression/2774 # time
 skip_tests += geo # geo
 
 # known failures
-skip_tests += regression/469
-skip_tests += sindex/status
-skip_tests += transform/map
-skip_tests += meta/table
-skip_tests += meta/dbs
 skip_tests += json
 skip_tests += selection
 skip_tests += mutation/insert
