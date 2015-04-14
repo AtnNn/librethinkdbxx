@@ -4,6 +4,8 @@
 
 namespace RethinkDB {
 
+class Cursor;
+
 class Cursor {
 public:
     Cursor(Token&&);
@@ -13,7 +15,19 @@ public:
 
     ~Cursor();
 
+    class iterator {
+    public:
+        iterator(Cursor*);
+        iterator& operator++ ();
+        Datum& operator* ();
+        bool operator!= (const iterator&) const;
+
+    private:
+        Cursor *cursor;
+    };
+
     Datum& next() const;
+    Datum& peek() const;
     void each(std::function<void(Datum&&)>) const;
     Array&& to_array() &&;
     Datum to_datum() &&;
@@ -22,6 +36,8 @@ public:
     void close() const;
     bool has_next() const;
     bool is_single() const;
+    iterator begin();
+    iterator end();
 
 private:
     void add_response(Response&&) const;

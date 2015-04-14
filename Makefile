@@ -18,9 +18,9 @@ upstream_tests_o := $(patsubst %.cc, %.o, $(upstream_tests_cc))
 
 .PRECIOUS: $(upstream_tests_cc) $(upstream_tests_o)
 
-default: build/librethinkdb++.a
+default: build/librethinkdb++.a build/include/rethinkdb.h build/librethink++.so
 
-all: build/librethinkdb++.a build/librethink++.so build/test build/include/rethinkdb.h
+all: default build/test
 
 build/librethinkdb++.a: $(o_files)
 	ar rcs $@ $^

@@ -32,6 +32,13 @@ Datum& Cursor::next() const {
     return buffer[index++];
 }
 
+Datum& Cursor::peek() const {
+    if (!has_next()) {
+        throw Error("next: No more data");
+    }
+    return buffer[index];
+}
+
 void Cursor::each(std::function<void(Datum&&)> f) const {
     while (has_next()) {
         f(std::move(buffer[index++]));
@@ -160,8 +167,41 @@ void Cursor::add_response(Response&& response) const {
     case RT::COMPILE_ERROR:
     case RT::RUNTIME_ERROR:
         no_more = true;
-        throw response.as_error(); 
+        throw response.as_error();
     }
+}
+
+Cursor::iterator Cursor::begin() {
+    return iterator(this);
+}
+
+Cursor::iterator Cursor::end() {
+    return iterator(NULL);
+}
+
+Cursor::iterator::iterator(Cursor* cursor_) : cursor(cursor_) { }
+
+Cursor::iterator& Cursor::iterator::operator++ () {
+    if (cursor == NULL) {
+        throw Error("incrementing an exhausted Cursor iterator");
+    }
+    cursor->next();
+    return *this;
+}
+
+Datum& Cursor::iterator::operator* () {
+    if (cursor == NULL) {
+        throw Error("reading from empty Cursor iterator");
+    }
+    return cursor->peek();
+}
+
+bool Cursor::iterator::operator!= (const Cursor::iterator& other) const {
+    if (cursor == other.cursor) {
+        return false;
+    }
+    return !((cursor == NULL && !other.cursor->has_next()) ||
+             (other.cursor == NULL && !cursor->has_next()));
 }
 
 }
