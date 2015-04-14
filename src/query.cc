@@ -216,7 +216,8 @@ Query Query::func_wrap(Query&& query) {
 
 Query Query::func_wrap(const Query& query) {
     if (query.datum.apply<bool>(needs_func_wrap)) {
-        return Query(TT::FUNC, {expr(Array{new_var_id(query.free_vars)}), query.copy()});
+        // TODO return Query(TT::FUNC, {expr(Array{new_var_id(query.free_vars)}), query.copy()});
+        return Query(Nil());
     }
     return query;
 }
@@ -282,5 +283,9 @@ Query thursday(TT::THURSDAY, {});
 Query friday(TT::FRIDAY, {});
 Query saturday(TT::SATURDAY, {});
 Query sunday(TT::SUNDAY, {});
+
+Query Query::copy() const {
+    return *this;
+}
 
 }

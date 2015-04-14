@@ -21,11 +21,15 @@ using OptArgs = std::map<std::string, Query>;
 
 class Query {
 public:
-    Query(const Query& other) : free_vars(other.free_vars), datum(other.datum) { }
-    Query(Query&& other) : free_vars(std::move(other.free_vars)), datum(std::move(other.datum)) { }
+    Query(const Query& other) = default;
+    Query(Query&& other) = default;
+    Query& operator= (const Query& other) = default;
+    Query& operator= (Query&& other) = default;
 
     explicit Query(Datum&&);
     explicit Query(OptArgs&&);
+
+    Query copy() const;
 
     Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
     Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
@@ -48,12 +52,8 @@ public:
         Object oargs;
         for (auto& it : optargs) {
             oargs.emplace(it.first, alpha_rename(std::move(it.second)));
-        }        
+        }
         datum = Array{ type, std::move(dargs), std::move(oargs) };
-    }
-
-    Query copy() const {
-        return *this;
     }
 
     static Query func_wrap(Query&&);
@@ -61,44 +61,44 @@ public:
 
 #define C0(name, type) \
     Query name() &&      { return Query(TT::type, std::vector<Query>{ std::move(*this) }); } \
-    Query name() const & { return Query(TT::type, std::vector<Query>{ this->copy()     }); }
+    Query name() const & { return Query(TT::type, std::vector<Query>{ *this            }); }
 #define C1(name, type, wrap)                                            \
     template <class T>                                                  \
     Query name(T&& a) && { return Query(TT::type, std::vector<Query>{ std::move(*this), wrap(expr(std::forward<T>(a))) }); } \
     template <class T>                                                  \
-    Query name(T&& a) const & { return Query(TT::type, std::vector<Query>{ this->copy(), wrap(expr(std::forward<T>(a))) }); }
+    Query name(T&& a) const & { return Query(TT::type, std::vector<Query>{ *this, wrap(expr(std::forward<T>(a))) }); }
 #define C2(name, type)                                                  \
     template <class T, class U> Query name(T&& a, U&& b) && {           \
         return Query(TT::type, std::vector<Query>{ std::move(*this),    \
                     expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); } \
     template <class T, class U> Query name(T&& a, U&& b) const & {      \
-        return Query(TT::type, std::vector<Query>{ this->copy(),        \
+        return Query(TT::type, std::vector<Query>{ *this,        \
                     expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); }
 #define C_(name, type, wrap)                                            \
     template <class ...T> Query name(T&& ...a) && {                     \
         return Query(TT::type, std::vector<Query>{ std::move(*this),    \
                     wrap(expr(std::forward<T>(a)))... }); }             \
     template <class ...T> Query name(T&& ...a) const & {                \
-        return Query(TT::type, std::vector<Query>{ this->copy(),        \
+        return Query(TT::type, std::vector<Query>{ *this,        \
                     wrap(expr(std::forward<T>(a)))... }); }
 #define CO0(name, type)                                                 \
     Query name(OptArgs&& optarg = {}) && {                              \
         return Query(TT::type, std::vector<Query>{ std::move(*this) }, std::move(optarg)); } \
     Query name(OptArgs&& optarg = {}) const & {                         \
-        return Query(TT::type, std::vector<Query>{ this->copy() }, std::move(optarg)); }
+        return Query(TT::type, std::vector<Query>{ *this }, std::move(optarg)); }
 #define CO1(name, type, wrap)                                                \
     template <class T> Query name(T&& a, OptArgs&& optarg = {}) && {    \
         return Query(TT::type, std::vector<Query>{ std::move(*this),    \
                     wrap(expr(std::forward<T>(a))) }, std::move(optarg)); } \
     template <class T> Query name(T&& a, OptArgs&& optarg = {}) const & { \
-        return Query(TT::type, std::vector<Query>{ this->copy(),        \
+        return Query(TT::type, std::vector<Query>{ *this,               \
                     wrap(expr(std::forward<T>(a))) }, std::move(optarg)); }
 #define CO2(name, type, wrap)                                           \
     template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) && { \
         return Query(TT::type, std::vector<Query>{ std::move(*this),    \
                     wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))) }, std::move(optarg)); } \
     template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) const & { \
-        return Query(TT::type, std::vector<Query>{ this->copy(),        \
+        return Query(TT::type, std::vector<Query>{ *this,        \
                     wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))) }, std::move(optarg)); }
 #define CO3(name, type, wrap)                                                \
     template <class T, class U, class V> Query name(T&& a, U&& b, V&& c, OptArgs&& optarg = {}) && { \
@@ -106,7 +106,7 @@ public:
                     wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))), \
                     wrap(expr(std::forward<V>(c))) }, std::move(optarg)); } \
     template <class T, class U, class V> Query name(T&& a, U&& b, V&& c, OptArgs&& optarg = {}) const & { \
-        return Query(TT::type, std::vector<Query>{ this->copy(),        \
+        return Query(TT::type, std::vector<Query>{ *this,        \
                     wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))), \
                     wrap(expr(std::forward<V>(c)))}, std::move(optarg)); }
 #define CO4(name, type, wrap)                                                \
@@ -115,7 +115,7 @@ public:
         wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))), \
         wrap(expr(std::forward<V>(c))), wrap(expr(std::forward<W>(d))) }, std::move(optarg)); } \
     template <class T, class U, class V, class W> Query name(T&& a, U&& b, V&& c, W&& d, OptArgs&& optarg = {}) const & { \
-        return Query(TT::type, std::vector<Query>{ this->copy(),        \
+        return Query(TT::type, std::vector<Query>{ *this,        \
         wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))), \
         wrap(expr(std::forward<V>(c))), wrap(expr(std::forward<W>(d))) }, std::move(optarg)); }
 #define CO_(name, type, wrap)                                       \
@@ -268,8 +268,8 @@ public:
     C0(rebalance, REBALANCE)
     CO0(reconfigure, RECONFIGURE)
     C0(status, STATUS)
-    CO0(wait, WAIT) 
-    C_(operator(), FUNCALL, no_wrap)
+    CO0(wait, WAIT)
+    // C_(operator(), FUNCALL, no_wrap) // breaks in some versions of gcc and clang
 
 #undef C0
 #undef C1
@@ -291,7 +291,7 @@ public:
             args.emplace_back(std::move(*it));
         }
         return Query(TT::FUNCALL, std::move(args));
-    }    
+    }
 
     Query opt(OptArgs&& optargs) && {
         return Query(std::move(*this), std::move(optargs));
@@ -391,11 +391,6 @@ void Query::set_function(F f) {
         return Query(TT::type, std::vector<Query>{ wrap(expr(std::forward<T>(a)))}, std::move(optarg)); }
 #define CO2(name, type) template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) { \
         return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), expr(std::forward<U>(b))}, std::move(optarg)); }
-#define CB(name, type)                                                  \
-    template <class T> Query name(T&& a, Query&& b) {                   \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), std::move(b) }); } \
-    template <class T> Query name(T&& a, const Query& b) {                   \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), b.copy() }); }
 #define func_wrap Query::func_wrap
 
 C1(db_create, DB_CREATE, no_wrap)

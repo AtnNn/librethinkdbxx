@@ -16,11 +16,11 @@ official RethinkDB Python driver.
 namespace R = RethinkDB;
 
 int main() {
-  std::unique_ptr<R::Connection> conn = R::Connect("localhost", 28015);
-  R::Cursor c = R::table("users").filter(R::row['age'] > 14).run(*conn);
+  std::unique_ptr<R::Connection> conn = R::connect("localhost", 28015);
+  R::Cursor c = R::table("users").filter(R::row["age"] > 14).run(*conn);
   while (c.has_next()) {
     R::Datum user = c.next();
-    printf("%s\n", R::write_datum(user));
+    printf("%s\n", R::write_datum(user).c_str());
   }
 }
 ```
