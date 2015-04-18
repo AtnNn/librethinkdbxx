@@ -1,6 +1,9 @@
 CXX ?= clang++
 CXXFLAGS := -std=c++11 -g -I'build/gen' -Wall -pthread -fPIC
 
+prefix ?= /usr
+DESTDIR ?=
+
 modules := net datum json query cursor types utils
 headers := utils error stream types datum json net cursor query
 
@@ -18,14 +21,14 @@ upstream_tests_o := $(patsubst %.cc, %.o, $(upstream_tests_cc))
 
 .PRECIOUS: $(upstream_tests_cc) $(upstream_tests_o)
 
-default: build/librethinkdb++.a build/include/rethinkdb.h build/librethink++.so
+default: build/librethinkdb++.a build/include/rethinkdb.h build/librethinkdb++.so
 
 all: default build/test
 
 build/librethinkdb++.a: $(o_files)
 	ar rcs $@ $^
 
-build/librethink++.so: $(o_files)
+build/librethinkdb++.so: $(o_files)
 	$(CXX) -o $@ $(CXXFLAGS) -shared $^
 
 build/obj/%.o: src/%.cc build/gen/protocol_defs.h
@@ -63,11 +66,19 @@ build/tests/%.o: test/%.cc test/testlib.h build/include/rethinkdb.h | build/test
 
 build/test: build/tests/testlib.o build/tests/test.o build/tests/upstream_tests.o $(upstream_tests_o) build/librethinkdb++.a
 	@echo $(CXX) -o $@ $(CXXFLAGS) build/librethinkdb++.a ...
-	@$(CXX) -o $@ $(CXXFLAGS) build/librethinkdb++.a $^ 
+	@$(CXX) -o $@ $(CXXFLAGS) build/librethinkdb++.a $^
 
 .PHONY: test
 test: build/test
 	build/test
+
+.PHONY: install
+install: build/librethinkdb++.a build/include/rethinkdb.h build/librethinkdb++.so
+	install -m755 -d $(DESTDIR)$(prefix)/lib
+	install -m755 -d $(DESTDIR)$(prefix)/include
+	install -m644 build/librethinkdb++.a $(DESTDIR)$(prefix)/lib/librethinkdb++.a
+	install -m644 build/librethinkdb++.so $(DESTDIR)$(prefix)/lib/librethinkdb++.so
+	install -m644 build/include/rethinkdb.h $(DESTDIR)$(prefix)/include/rethinkdb.h
 
 %/.:
 	mkdir -p $*
