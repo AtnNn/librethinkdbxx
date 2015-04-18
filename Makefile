@@ -1,5 +1,5 @@
 CXX ?= clang++
-CXXFLAGS := -std=c++11 -g -I'build/gen' -Wall -pthread
+CXXFLAGS := -std=c++11 -g -I'build/gen' -Wall -pthread -fPIC
 
 modules := net datum json query cursor types utils
 headers := utils error stream types datum json net cursor query

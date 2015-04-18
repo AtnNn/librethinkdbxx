@@ -31,7 +31,6 @@ public:
 
     Query copy() const;
 
-    Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
     Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
     Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, Var, Var>(f); }
     Query(std::function<Query(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var, Var)>, Var, Var, Var>(f); }
@@ -269,7 +268,26 @@ public:
     CO0(reconfigure, RECONFIGURE)
     C0(status, STATUS)
     CO0(wait, WAIT)
-    // C_(operator(), FUNCALL, no_wrap) // breaks in some versions of gcc and clang
+
+    // Instead of this, which fails to compile on some versions of GCC and Clang:
+    // C_(operator(), FUNCALL, no_wrap)
+    // Do this, which is the same, but doesn't match the Query constructors
+    template <class T, class ...U>
+    typename std::enable_if<!std::is_same<T, Var>::value, Query>::type
+    operator() (T&& a, U&& ...b) && {
+        return Query(TT::FUNCALL, std::vector<Query>{
+                std::move(*this),
+                expr(std::forward<T>(a)),
+                expr(std::forward<U>(b))... });
+    }
+    template <class T, class ...U>
+    typename std::enable_if<!std::is_same<T, Var>::value, Query>::type
+    operator() (T&& a, U&& ...b) const & {
+        return Query(TT::FUNCALL, std::vector<Query>{
+                *this,
+                expr(std::forward<T>(a)),
+                expr(std::forward<U>(b))... });
+    }
 
 #undef C0
 #undef C1

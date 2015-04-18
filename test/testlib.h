@@ -46,7 +46,7 @@ struct err {
     }
 
     static std::string trim_message(std::string msg) {
-        int i = msg.find(":\n");
+        size_t i = msg.find(":\n");
         if (i != std::string::npos) {
             return msg.substr(0, i) + ".";
         }
