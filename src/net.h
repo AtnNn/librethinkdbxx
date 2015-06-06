@@ -16,8 +16,10 @@ class Token;
 class Connection;
 class ResponseBuffer;
 
+// Used internally to convert a raw response type into an enum
 Protocol::Response::ResponseType response_type(double t);
 
+// Contains a response from the server. Use the Cursor class to interact with these responses
 class Response {
 public:
     Response(Datum&& datum) :
@@ -28,14 +30,21 @@ public:
     Array result;
 };
 
+// A connection to a RethinkDB server
+// It contains:
+//  * A socket
+//  * Read and write locks
+//  * A cache of responses that have not been read by the corresponding Cursor
 class Connection {
 public:
-    Connection(const std::string&, int, const std::string&);
+    Connection(const std::string& host, int port, const std::string& auth_key);
 
     Connection(const Connection&) = delete;
     Connection(Connection&&) = default;
 
+    // Used internally by Query::run
     Token start_query(const std::string&);
+
     void close();
 
 private:
@@ -69,8 +78,11 @@ private:
     bool guarded_loop_active;
 };
 
+// $doc(connect)
 std::unique_ptr<Connection> connect(std::string host = "localhost", int port = 28015, std::string auth_key = "");
 
+// Each server response is associated with a token, which allows multiplexing streams
+// A token can be used to create a cursor
 class Token {
 public:
     Token(Connection::WriteLock&);

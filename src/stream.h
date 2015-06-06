@@ -38,7 +38,7 @@ public:
             end = true;
             return EOF;
         }
-        return buffer[0]; 
+        return buffer[0];
     }
 
     int next() {

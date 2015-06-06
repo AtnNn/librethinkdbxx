@@ -80,7 +80,7 @@ bool base64_decode(const std::string& in, std::string& out) {
                     ++read;
                 }
             }
-        } 
+        }
         if (end == 1) return false;
         int val = c[0] << 18 | c[1] << 12 | c[2] << 6 | c[3];
         if (end > 1) out.append(1, val >> 16);

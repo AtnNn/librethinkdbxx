@@ -13,6 +13,18 @@ namespace RethinkDB {
 
 class Cursor;
 
+// The type of data stored in a RethinkDB database.
+// The following JSON types are represented in a Datum as
+//  * null -> Nil
+//  * boolean -> bool
+//  * number -> double
+//  * unicode strings -> std::string
+//  * array -> Array (aka std::vector<Datum>
+//  * object -> Object (aka std::map<std::string, Datum>>
+// Datums can also contain one of the following extra types
+//  * binary strings -> Binary
+//  * timestamps -> Time
+//  * points. lines and polygons -> not implemented
 class Datum {
 public:
     Datum(Nil) : type(Type::NIL), value() { }
@@ -25,10 +37,8 @@ public:
     Datum(const Binary& binary) : type(Type::BINARY), value(binary) { }
     Datum(Binary&& binary) : type(Type::BINARY), value(std::move(binary)) { }
     Datum(const Time time) : type(Type::TIME), value(time) { }
-
     Datum(const Object& object_) : type(Type::OBJECT), value(object_) { }
     Datum(Object&& object_) : type(Type::OBJECT), value(std::move(object_)) { }
-
     Datum(const Datum& other) : type(other.type), value(other.type, other.value) { }
     Datum(Datum&& other) : type(other.type), value(other.type, std::move(other.value)) { }
 
@@ -52,6 +62,8 @@ public:
     Datum(int64_t number_) : Datum(static_cast<double>(number_)) { }
     Datum(Protocol::Term::TermType type) : Datum(static_cast<double>(type)) { }
     Datum(const char* string) : Datum(static_cast<std::string>(string)) { }
+
+    // Cursors are implicitly converted into datums
     Datum(Cursor&&);
     Datum(const Cursor&);
 
@@ -87,6 +99,7 @@ public:
         value.destroy(type);
     }
 
+    // Apply a visitor
     template <class R, class F, class ...A>
     R apply(F f, A&& ...args) const & {
         switch (type) {
@@ -119,6 +132,8 @@ public:
 
     bool is_nil() const;
 
+    // get_* returns nullptr if the datum has a different type
+
     bool* get_boolean();
     const bool* get_boolean() const;
     double* get_number();
@@ -138,6 +153,8 @@ public:
     Time* get_time();
     const Time* get_time() const;
 
+    // extract_* throws an exception if the types don't match
+
     bool& extract_boolean();
     double& extract_number();
     std::string& extract_string();
@@ -148,10 +165,17 @@ public:
     Binary& extract_binary();
     Time& extract_time();
 
+    // negative, zero or positive if this datum is smaller, identical or larger than the other one, respectively
+    // This is meant to match the results of RethinkDB's comparison operators
     int compare(const Datum&) const;
+
+    // Deep equality
     bool operator== (const Datum&) const;
 
+    // Recusively replace non-JSON types into objects that represent them
     Datum to_raw() const;
+
+    // Recursively replace objects with a $reql_type$ field into the datum they represent
     Datum from_raw() const;
 
 private:
@@ -228,7 +252,7 @@ private:
             case Type::ARRAY: array.~Array(); break;
             case Type::BINARY: binary.~Binary(); break;
             case Type::TIME: time.~Time(); break;
-            } 
+            }
         }
 
         ~datum_value() { }

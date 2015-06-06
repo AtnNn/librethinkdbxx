@@ -1,5 +1,21 @@
+# Customisable build settings
+
 CXX ?= clang++
-CXXFLAGS := -std=c++11 -g -I'build/gen' -Wall -pthread -fPIC
+CXXFLAGS ?=
+INCLUDE_PYTHON_DOCS ?= no
+DEBUG ?= no
+
+# Required build settings
+
+ifneq (,$(CXXFLAGS))
+  ifneq (no,$(DEBUG))
+    CXXFLAGS += -g
+  else
+    CXXFLAGS += -O3 -flto
+  endif
+endif
+
+CXXFLAGS += -std=c++11 -I'build/gen' -Wall -pthread -fPIC
 
 prefix ?= /usr
 DESTDIR ?=
@@ -42,7 +58,15 @@ build/gen/protocol_defs.h: reql/ql2.proto reql/gen.py | build/gen/.
 clean:
 	rm -rf build
 
-build/include/rethinkdb.h: build/gen/protocol_defs.h $(patsubst %, src/%.h, $(headers)) | build/include/.
+ifneq (no,$(INCLUDE_PYTHON_DOCS))
+build/include/rethinkdb.h: build/rethinkdb.nodocs.h reql/add_docs.py reql/python_docs.txt | build/include/.
+	python3 reql/add_docs.py reql/python_docs.txt < $< > $@
+else
+build/include/rethinkdb.h: build/rethinkdb.nodocs.h | build/include/.
+	cp $< $@
+endif
+
+build/rethinkdb.nodocs.h: build/gen/protocol_defs.h $(patsubst %, src/%.h, $(headers))
 	( echo "// Auto-generated file, built from $^"; \
 	  echo '#pragma once'; \
 	  cat $^ | \

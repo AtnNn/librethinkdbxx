@@ -26,14 +26,34 @@ int main() {
 
 ## Build
 
-Requires a modern C++ compiler. to build, run:
+Requires a modern C++ compiler. to build and install, run:
 
 ```
 make
+make install
 ```
 
 Will build `include/rethinkdb.h`, `librethinkdb++.a` and
 `librethinkdb++.so` into the `build/` directory.
+
+To include documentation from the Python driver in the header file,
+pass the following argument to make.
+
+```
+make INCLUDE_PYTHON_DOCS=yes
+```
+
+To build in debug mode:
+
+```
+make DEBUG=yes
+```
+
+To install to a specific location:
+
+```
+make install prefix=/usr/local DESTDIR=
+```
 
 ## Status
 

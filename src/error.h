@@ -6,6 +6,7 @@
 
 namespace RethinkDB {
 
+// All errors thrown by the server have this type
 struct Error {
     template <class ...T>
     explicit Error(const char* format_, T... A) {
@@ -25,7 +26,9 @@ struct Error {
         return Error("%s: %s", str, strerror(errno));
     }
 
+    // The error message
     std::string message;
+
 private:
     const size_t max_message_size = 2048;
 

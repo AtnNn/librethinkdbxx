@@ -12,13 +12,17 @@ using TT = Protocol::Term::TermType;
 class Query;
 class Var;
 
+// An alias for the Query constructor
 template <class T>
 Query expr(T&&);
 
 int gen_var_id();
 
+// Can be used as the last argument to some ReQL commands that expect named arguments
 using OptArgs = std::map<std::string, Query>;
 
+// Represents a ReQL query (RethinkDB Query Language)
+// Designed to be used with r-value *this
 class Query {
 public:
     Query(const Query& other) = default;
@@ -29,6 +33,7 @@ public:
     explicit Query(Datum&&);
     explicit Query(OptArgs&&);
 
+    // Create a copy of the Query
     Query copy() const;
 
     Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
@@ -55,8 +60,17 @@ public:
         datum = Array{ type, std::move(dargs), std::move(oargs) };
     }
 
+    // Used internally to support row
     static Query func_wrap(Query&&);
     static Query func_wrap(const Query&);
+
+
+    // These macros are used to define most ReQL commands
+    //  * Cn represents a method with n arguments
+    //  * COn represents a method with n arguments and optional named arguments
+    //  * C_ represents a method with any number of arguments
+    // Each method is implemented twice, once with r-value *this, and once with const *this
+    // The third argument, wrap, allows converting arguments into functions if they contain row
 
 #define C0(name, type) \
     Query name() &&      { return Query(TT::type, std::vector<Query>{ std::move(*this) }); } \
@@ -269,9 +283,12 @@ public:
     C0(status, STATUS)
     CO0(wait, WAIT)
 
-    // Instead of this, which fails to compile on some versions of GCC and Clang:
+    // The expansion of this macro fails to compile on some versions of GCC and Clang:
     // C_(operator(), FUNCALL, no_wrap)
-    // Do this, which is the same, but doesn't match the Query constructors
+    // The std::enable_if makes the error go away
+
+    // $doc(do)
+
     template <class T, class ...U>
     typename std::enable_if<!std::is_same<T, Var>::value, Query>::type
     operator() (T&& a, U&& ...b) && {
@@ -297,8 +314,11 @@ public:
 #undef CO1
 #undef CO2
 
+    // Send the query to the server and return the results.
+    // Errors returned by the server are thrown.
     Cursor run(Connection&, OptArgs&& args = {});
 
+    // $doc(do)
     template <class ...T>
     Query do_(T&& ...a) && {
         auto list = { std::move(*this), expr(std::forward<T>(a))... };
@@ -311,11 +331,15 @@ public:
         return Query(TT::FUNCALL, std::move(args));
     }
 
+    // Adds optargs to an already built query
     Query opt(OptArgs&& optargs) && {
         return Query(std::move(*this), std::move(optargs));
     }
 
+    // Used internally to implement object()
     static Query make_object(std::vector<Query>&&);
+
+    // Used internally to implement array()
     static Query make_binary(Query&&);
 
 private:
@@ -335,6 +359,7 @@ private:
     Datum datum;
 };
 
+// A query representing null
 Query nil();
 
 template <class T>
@@ -342,14 +367,18 @@ Query expr(T&& a) {
     return Query(std::forward<T>(a));
 }
 
+// Represents a ReQL variable.
+// This type is passed to functions used in ReQL queries.
 class Var {
 public:
-    Var(int* id_) : id(id_) { }
+    // Convert to a Query
     Query operator*() const {
         Query query(TT::VAR, std::vector<Query>{expr(*id)});
         query.free_vars = {{*id, id}};
         return query;
     }
+
+    Var(int* id_) : id(id_) { }
 private:
     int* id;
 };
@@ -382,6 +411,7 @@ void Query::set_function(F f) {
     datum = Array{TT::FUNC, Array{Array{TT::MAKE_ARRAY, vars}, body.datum}};
 }
 
+// These macros are similar to those defined above, but for top-level ReQL operations
 
 #define C0(name) Query name();
 #define C0_IMPL(name, type) Query name() { return Query(TT::type, std::vector<Query>{}); }
@@ -478,23 +508,29 @@ C_(map, MAP, func_wrap)
 #undef CO2
 #undef func_wrap
 
+// $doc(do)
 template <class R, class ...T>
 Query do_(R&& a, T&& ...b) {
     return expr(std::forward<R>(a)).do_(std::forward<T>(b)...);
 }
 
+// $doc(object)
 template <class ...T>
 Query object(T&& ...a) {
     return Query::make_object(std::vector<Query>{ expr(std::forward<T>(a))... });
 }
 
+// $doc(binary)
 template <class T>
 Query binary(T&& a) {
     return Query::make_binary(expr(std::forward<T>(a)));
 }
 
+// Construct an empty optarg
 OptArgs optargs();
 
+// Construct an optarg made out of pairs of arguments
+// For example: optargs("k1", v1, "k2", v2)
 template <class V, class ...T>
 OptArgs optargs(const char* key, V&& val, T&& ...rest) {
     OptArgs opts = optargs(rest...);
