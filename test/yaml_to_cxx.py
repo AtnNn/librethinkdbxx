@@ -73,7 +73,7 @@ def to_cxx_str(expr):
     if type(expr) is ast.Num:
         return string(str(expr.n))
     if 'frozenset' in ast.dump(expr):
-        raise Discard
+        raise Discard("frozenset not supported")
     raise Unhandled("not string expr: " + ast.dump(expr))
 
 def is_null(expr):
@@ -123,11 +123,11 @@ def to_cxx(expr, prec, ctx):
             if expr.attr == 'RqlTzinfo':
                 return 'R::Time::parse_utc_offset'
             if expr.attr in ['encode', 'close']:
-                raise Discard
+                raise Discard(expr.attr + " not supported")
             return to_cxx_expr(expr.value, 2, ctx) + "." + rename(expr.attr)
         elif t == ast.Name:
             if expr.id in ['frozenset']:
-                raise Discard()
+                raise Discard("frozenset not supported")
             elif expr.id in ctx.vars:
                 return parens(prec, 3, "*" + expr.id)
             return rename(expr.id)
@@ -373,15 +373,15 @@ def maybe_discard(py, ot):
     if ot is None:
         return
     if match(".*Expected .* argument", ot):
-        raise Discard
+        raise Discard("argument checks not supported")
     if match(".*argument .* must", ot):
-        raise Discard
+        raise Discard("argument checks not supported")
     if match(".*infix bitwise", ot):
-        raise Discard
+        raise Discard("infix bitwise not supported")
     if match(".*Object keys must be strings", ot):
-        raise Discard
+        raise Discard("string object keys tests not supported")
     if match(".*Got .* argument", ot):
-        raise Discard
+        raise Discard("argument checks not supported")
 
 data = load(open(argv[1]).read())
 
@@ -428,9 +428,9 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
             p("TEST_EQ(%s.run(*conn%s), (%s));" % (convert(py, 2, name, 'query'), args, convert(ot, 17, name, 'datum')))
         else:
             p("TEST_DO(%s.run(*conn%s));" % (convert(py, 2, name, 'query'), args))
-    except Discard:
+    except Discard as exc:
         if verbosity >= 1:
-            print("Discarding %s (%s)" % (repr(py), repr(ot)), file=stderr)
+            print("Discarding %s (%s): %s" % (repr(py), repr(ot), str(exc)), file=stderr)
         pass
     except Unhandled as e:
         failed = True
