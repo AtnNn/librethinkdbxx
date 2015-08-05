@@ -4,6 +4,7 @@ CXX ?= clang++
 CXXFLAGS ?=
 INCLUDE_PYTHON_DOCS ?= no
 DEBUG ?= no
+PYTHON ?= python3
 
 # Required build settings
 
@@ -53,14 +54,14 @@ build/obj/%.o: src/%.cc build/gen/protocol_defs.h
 	$(CXX) -o $@ $(CXXFLAGS) -c $< -MP -MQ $@ -MD -MF build/dep/$*.d
 
 build/gen/protocol_defs.h: reql/ql2.proto reql/gen.py | build/gen/.
-	python3 reql/gen.py $< > $@
+	$(PYTHON) reql/gen.py $< > $@
 
 clean:
 	rm -rf build
 
 ifneq (no,$(INCLUDE_PYTHON_DOCS))
 build/include/rethinkdb.h: build/rethinkdb.nodocs.h reql/add_docs.py reql/python_docs.txt | build/include/.
-	python3 reql/add_docs.py reql/python_docs.txt < $< > $@
+	$(PYTHON) reql/add_docs.py reql/python_docs.txt < $< > $@
 else
 build/include/rethinkdb.h: build/rethinkdb.nodocs.h | build/include/.
 	cp $< $@
@@ -76,11 +77,11 @@ build/rethinkdb.nodocs.h: build/gen/protocol_defs.h $(patsubst %, src/%.h, $(hea
 
 build/tests/%.cc: %.yaml test/yaml_to_cxx.py
 	@mkdir -p $(dir $@)
-	python3 test/yaml_to_cxx.py $< > $@
+	$(PYTHON) test/yaml_to_cxx.py $< > $@
 
 build/tests/upstream_tests.cc: $(upstream_tests) test/gen_index_cxx.py FORCE | build/tests/.
-	@echo 'python3 test/gen_index_cxx.py ... > $@'
-	@python3 test/gen_index_cxx.py $(upstream_tests) > $@
+	@echo '$(PYTHON) test/gen_index_cxx.py ... > $@'
+	@$(PYTHON) test/gen_index_cxx.py $(upstream_tests) > $@
 
 build/tests/%.o: build/tests/%.cc build/include/rethinkdb.h test/testlib.h | build/tests/.
 	$(CXX) -o $@ $(CXXFLAGS) -isystem build/include -I test -c $< -Wno-unused-variable

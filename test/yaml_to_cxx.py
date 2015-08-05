@@ -9,6 +9,11 @@ import ast
 
 verbosity = 1
 
+try:
+    NameConstant = ast.NameConstant
+except:
+    NameConstant = lambda a: a
+
 class Discard(Exception):
     pass
 
@@ -72,10 +77,12 @@ def to_cxx_str(expr):
     raise Unhandled("not string expr: " + ast.dump(expr))
 
 def is_null(expr):
-    return type(expr) is ast.Name and expr.id in ['None', 'null']
+    return (type(expr) is ast.Name and expr.id in ['None', 'null']
+            or type(expr) is NameConstant and expr.value == None)
 
 def is_bool(expr):
-    return type(expr) is ast.Name and expr.id in ['true', 'false', 'True', 'False']
+    return (type(expr) is ast.Name and expr.id in ['true', 'false', 'True', 'False']
+            or type(expr) is NameConstant and expr.value in [True, False])
 
 def to_cxx_expr(expr, prec, ctx):
     if ctx.type == 'query':
@@ -124,6 +131,15 @@ def to_cxx(expr, prec, ctx):
             elif expr.id in ctx.vars:
                 return parens(prec, 3, "*" + expr.id)
             return rename(expr.id)
+        elif t == NameConstant:
+            if expr.value == True:
+                return "true"
+            elif expr.value == False:
+                return "false"
+            elif expr.value == None:
+                return "R::Nil()"
+            else:
+                raise Unhandled("constant: " + repr(expr.value))
         elif t == ast.Subscript:
             st = type(expr.slice)
             if st == ast.Index:

@@ -36,10 +36,10 @@ public:
     // Create a copy of the Query
     Query copy() const;
 
+    Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
     Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
     Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, Var, Var>(f); }
     Query(std::function<Query(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var, Var)>, Var, Var, Var>(f); }
-
     Query(Protocol::Term::TermType type, std::vector<Query>&& args) : datum(Array()) {
         Array dargs;
         for (auto& it : args) {
