@@ -104,6 +104,7 @@ bool read_field(BufferedInputStream& stream, Object* object) {
             skip_spaces(stream);
             c = stream.next();
             if (c == ',') {
+                skip_spaces(stream);
                 return true;
             } else if (c == '}') {
                 return false;
