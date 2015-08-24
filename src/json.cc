@@ -1,5 +1,6 @@
 
 #include <cstring>
+#include <locale.h>
 
 #include "json.h"
 #include "error.h"
@@ -162,6 +163,15 @@ void read_exact(BufferedInputStream& stream, const char* str) {
     }
 }
 
+locale_t locale_c() {
+    static locale_t ret = nullptr;
+    if (!ret) {
+        // TODO: this was only tested with glibc
+        ret = newlocale(LC_ALL_MASK, "C", nullptr);
+    }
+    return ret;
+}
+
 Datum read_number(BufferedInputStream& stream, char first) {
     const size_t max_buf_size = 128;
     char buf[max_buf_size];
@@ -182,7 +192,7 @@ Datum read_number(BufferedInputStream& stream, char first) {
     }
     buf[i] = 0;
     char *end;
-    double number = strtod(buf, &end);
+    double number = strtod_l(buf, &end, locale_c());
     if (*end != 0) {
         throw Error("Invalid JSON number '%s'", buf);
     }
