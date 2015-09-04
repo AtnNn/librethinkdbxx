@@ -150,7 +150,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             const R::Array* data = got.get_field("data")->get_array();
             R::Object object;
             for (R::Datum it : *data) {
-                object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1)); 
+                object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1));
             }
             return equal(object, expected);
         }
@@ -201,7 +201,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
                 if (!partial_datum) break;
                 const R::Array* partial = partial_datum->get_array();
                 if (!partial) break;
-                
+
                 for (const auto& want : *partial) {
                     bool match = false;
                     for (const auto& have : *array) {
@@ -261,7 +261,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
 }
 
 R::Object partial(R::Array&& array) {
-    return R::Object{{"special", "partial"}, {"partial", std::move(array)}};   
+    return R::Object{{"special", "partial"}, {"partial", std::move(array)}};
 }
 
 R::Object regex(const char* pattern) {

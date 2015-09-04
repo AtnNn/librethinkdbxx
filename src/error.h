@@ -3,6 +3,7 @@
 #include <cstdarg>
 #include <cstring>
 #include <string>
+#include <cerrno>
 
 namespace RethinkDB {
 

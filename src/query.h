@@ -356,7 +356,7 @@ private:
     template <class _>
     Var mkvar(std::vector<int>& vars);
 
-    template <class F, class ...A>
+    template <class F, class ... Vars>
     void set_function(F);
 
     Datum alpha_rename(Query&&);
@@ -398,11 +398,11 @@ Var Query::mkvar(std::vector<int>& vars) {
     return Var(&*vars.rbegin());
 }
 
-template <class F, class ...A>
+template <class F, class ... Vars>
 void Query::set_function(F f) {
     std::vector<int> vars;
-    vars.reserve(sizeof...(A));
-    Query body = f(mkvar<A>(vars)...);
+    vars.reserve(sizeof...(Vars));
+    Query body = f(mkvar<Vars>(vars)...);
     int* low = &*vars.begin();
     int* high = &*(vars.end() - 1);
     for (auto it = body.free_vars.begin(); it != body.free_vars.end(); ) {

@@ -108,8 +108,8 @@ def to_cxx(expr, prec, ctx):
             else:
                 return repr(expr.n)
         elif t == ast.Call:
-            assert not expr.kwargs
-            assert not expr.starargs
+            #assert not expr.kwargs
+            #assert not expr.starargs
             return to_cxx(expr.func, 2, ctx_set(ctx, context='function')) + to_args(expr.func, expr.args, expr.keywords, ctx)
         elif t == ast.Attribute:
             if type(expr.value) is ast.Name:

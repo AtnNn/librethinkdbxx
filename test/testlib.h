@@ -84,7 +84,7 @@ struct temp_table {
         }
         name_[14] = 0;
         R::table_create(name_).run(*conn);
-        name = name_; 
+        name = name_;
     }
     ~temp_table() { R::table_drop(name).run(*conn); }
     R::Query table() { return R::table(name); }
@@ -152,7 +152,7 @@ void test_eq(const char* code, const R::Cursor& val, const U expected) {
         test_eq(code, result, expected);
     } catch (R::Error& error) {
         test_eq(code, error, expected);
-    } 
+    }
 }
 
 int len(const R::Datum&);
