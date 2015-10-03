@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __APPLE__
+#include <errno.h>
+#endif
+
 #include <cstdarg>
 #include <cstring>
 #include <string>

@@ -1,6 +1,10 @@
 #include "types.h"
 #include "error.h"
 
+#ifdef __APPLE__
+#include <cstdlib>
+#endif
+
 namespace RethinkDB {
 
 bool Time::parse_utc_offset(const std::string& string, double* offset) {

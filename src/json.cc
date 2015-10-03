@@ -1,6 +1,12 @@
 
 #include <cstring>
+
 #include <locale.h>
+
+#ifdef __APPLE__
+#include <stdlib.h>
+#include <xlocale.h>
+#endif
 
 #include "json.h"
 #include "error.h"
