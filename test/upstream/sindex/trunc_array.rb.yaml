@@ -29,32 +29,38 @@ tests:
 
 # Run tests with a batch configuration that guarantees some truncated
 # keys are split across batches.
-  - rb: tbl.orderby({:index => 'a'}).map{|x| x['num']}
+  - rb: tbl.orderby({:index => 'a'}).map{|x| x['num']}.coerce_to('array')
     runopts:
-      max_batch_rows: "10"
+      max_batch_rows: 10
     ot: vals.map{|x| x[:num]}
 
-  - rb: tbl.orderby({:index => r.desc('a')}).map{|x| x['num']}
+  - rb: tbl.orderby({:index => r.desc('a')}).map{|x| x['num']}.coerce_to('array')
     runopts:
-      max_batch_rows: "10"
+      max_batch_rows: 10
     ot: vals.map{|x| x[:num]}.reverse
 
-  - rb: tbl.between("a"*1000+"150", 'c'*1000+"450", index:'a').orderby('a').map{|x| x['num']}
+  - rb: tbl.between("a"*1000+"150", 'c'*1000+"450", index:'a').orderby('a').map{|x| x['num']}.coerce_to('array')
     runopts:
-      max_batch_rows: "10"
+      max_batch_rows: 10
     ot: vals.map{|x| x[:num]}.select{|x| x >= 150 && x < 450}
 
-  - rb: tbl.between(r.minval, 'c'*1000+"450", index:'a').orderby('a').map{|x| x['num']}
+  - rb: tbl.between(r.minval, 'c'*1000+"450", index:'a').orderby('a').map{|x| x['num']}.coerce_to('array')
     runopts:
-      max_batch_rows: "10"
+      max_batch_rows: 10
     ot: vals.map{|x| x[:num]}.select{|x| x < 450}
 
-  - rb: tbl.between("a"*1000+"150", r.maxval, index:'a').orderby('a').map{|x| x['num']}
+  - rb: tbl.between("a"*1000+"150", r.maxval, index:'a').orderby('a').map{|x| x['num']}.coerce_to('array')
     runopts:
-      max_batch_rows: "10"
+      max_batch_rows: 10
     ot: vals.map{|x| x[:num]}.select{|x| x >= 150}
-  
-  - rb: result = tbl.orderby('a', index:'idi')
+
+  - rb: tbl.orderby('id').coerce_to('array').eq(tbl.orderby(index:'id').coerce_to('array'))
+    ot: true
+
+  - rb: tbl.orderby(r.desc('id')).coerce_to('array').eq(tbl.orderby(index:r.desc('id')).coerce_to('array'))
+    ot: true
+
+  - rb: result = tbl.orderby('a', index:'idi').coerce_to('array')
     runopts:
       max_batch_rows: 100
       first_batch_scaledown_factor: 1
