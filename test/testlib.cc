@@ -2,13 +2,17 @@
 
 #include "testlib.h"
 
-int verbosity = 1;
+int verbosity = 2;
 
 int failed = 0;
 int count = 0;
 std::vector<std::pair<const char*, bool>> section;
 
 std::unique_ptr<R::Connection> conn;
+
+// std::string to_string(const R::Cursor&) {
+//     return "<Cursor>";
+// }
 
 std::string to_string(const R::Datum& datum) {
     return write_datum(datum);
@@ -84,9 +88,11 @@ std::string repeat(std::string&& s, int n) {
     return string;
 }
 
-R::Query fetch(R::Cursor& cursor, int count) {
+R::Query fetch(R::Cursor& cursor, int count=0, double timeout=0) {
     R::Array array;
-    for (int i = 0; i < count; ++i) {
+    int deadline = time(NULL) + int(timeout);
+    for (int i = 0; count == 0 || i < count; ++i) {
+        if (time(NULL) > deadline) break;
         array.emplace_back(cursor.next());
     }
     return expr(std::move(array));
@@ -94,6 +100,10 @@ R::Query fetch(R::Cursor& cursor, int count) {
 
 R::Object bag(R::Array&& array) {
     return R::Object{{"special", "bag"}, {"bag", std::move(array)}};
+};
+
+R::Object bag(R::Datum&& d) {
+    return R::Object{{"special", "bag"}, {"bag", std::move(d)}};
 };
 
 std::string string_key(const R::Datum& datum) {
@@ -202,6 +212,14 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             if (string && string->size() == 36) {
                 return true;
             }
+        } else if (*type == "regex") {
+            const R::Datum* regex_datum = expected.get_field("regex");
+            if (!regex_datum) break;
+            const std::string* regex = regex_datum->get_string();
+            if (!regex) break;
+            const std::string* str = got.get_string();
+            if (!str) break;
+            return match(str->c_str(), regex->c_str());
         }
     } while(0);
     const R::Object* got_object = got.get_object();
@@ -239,6 +257,10 @@ R::Object partial(R::Array&& array) {
     return R::Object{{"special", "partial"}, {"partial", std::move(array)}};   
 }
 
+R::Object regex(const char* pattern) {
+    return R::Object{{"special", "regex"}, {"regex", pattern}};
+}
+
 void clean_slate() {
     R::table_list().for_each([](R::Var t){ return R::table_drop(*t); });
     R::db("rethinkdb").table("_debug_scratch").delete_().run(*conn);
@@ -255,3 +277,16 @@ std::string truncate(std::string&& string) {
     }
     return string;
 }
+
+int len(const R::Datum& d) {
+    const R::Array* arr = d.get_array();
+    if (!arr) throw ("testlib: len: expected an array but got " + to_string(d));
+    return arr->size();
+}
+
+R::Query wait(int n) {
+    sleep(n);
+    return R::expr(n);
+}
+
+R::Datum nil = R::Nil();

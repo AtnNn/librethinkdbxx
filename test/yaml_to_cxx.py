@@ -1,6 +1,6 @@
 from sys import argv, stderr, float_info
 import sys
-from yaml import load
+from upstream.parsePolyglot import parseYAML
 from os import walk
 from os.path import join
 from re import sub, match, split
@@ -97,7 +97,11 @@ def to_cxx(expr, prec, ctx):
         t = type(expr)
         if t == ast.Num:
             if abs(expr.n) > 4503599627370496:
-                return repr(expr.n) + ".0"
+                f = repr(expr.n)
+                if "e" in f:
+                    return f
+                else:
+                    return f + ".0"
             else:
                 return repr(expr.n)
         elif t == ast.Call:
@@ -278,16 +282,8 @@ def string(s, ctx=None):
     was_hex = False
     wrap = ctx and ctx.type == 'string'
     if type(s) is str:
-        def string_escape(c):
-            if c == '"':
-                return '\\"'
-            if c == '\\':
-                return '\\\\'
-            if c == '\n':
-                return '\\n' 
-            else:
-                return c
-    elif type(s) is bytes:
+        s = s.encode('utf8')
+    if type(s) is bytes:
         def string_escape(c):
             nonlocal wrap
             nonlocal was_hex
@@ -383,7 +379,7 @@ def maybe_discard(py, ot):
     if match(".*Got .* argument", ot):
         raise Discard("argument checks not supported")
 
-data = load(open(argv[1]).read())
+data = parseYAML(open(argv[1]).read())
 
 name = sub('/', '_', argv[1].split('.')[0])
 
@@ -425,9 +421,9 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
                     dvar = "auto " + var
                 p("TEST_DO(" + dvar + " = (" + val + post + "));")
         elif ot:
-            p("TEST_EQ(%s.run(*conn%s), (%s));" % (convert(py, 2, name, 'query'), args, convert(ot, 17, name, 'datum')))
+            p("TEST_EQ(maybe_run(%s, *conn%s), (%s));" % (convert(py, 2, name, 'query'), args, convert(ot, 17, name, 'datum')))
         else:
-            p("TEST_DO(%s.run(*conn%s));" % (convert(py, 2, name, 'query'), args))
+            p("TEST_DO(maybe_run(%s, *conn%s));" % (convert(py, 2, name, 'query'), args))
     except Discard as exc:
         if verbosity >= 1:
             print("Discarding %s (%s): %s" % (repr(py), repr(ot), str(exc)), file=stderr)

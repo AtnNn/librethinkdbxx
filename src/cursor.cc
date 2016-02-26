@@ -19,6 +19,13 @@ Cursor::Cursor(Token&& token_, Response&& response) : token(std::move(token_)) {
 Cursor::Cursor(Token&& token_, Datum&& datum) :
     single(true), no_more(true), buffer(Array{std::move(datum)}), token(std::move(token_)) { }
 
+Cursor::Cursor(Datum&& d) {
+    buffer.emplace_back(d);
+    index = 0;
+    single = true;
+    no_more = true;
+}
+    
 Cursor::~Cursor() {
     if (!no_more) {
         close();
@@ -158,6 +165,11 @@ void Cursor::add_response(Response&& response) const {
         add_results(std::move(response.result));
         break;
     case RT::SUCCESS_ATOM:
+        add_results(std::move(response.result));
+        single = true;
+        no_more = true;
+        break;
+    case RT::SERVER_INFO:
         add_results(std::move(response.result));
         single = true;
         no_more = true;

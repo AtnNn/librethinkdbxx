@@ -81,9 +81,9 @@ int main() {
         return 1;
     }
     try {
-        test_binary();
-        test_json_parse_print();
-        test_reql();
+        //test_binary();
+        //test_json_parse_print();
+        //test_reql();
         //test_cursor();
         run_upstream_tests();
     } catch (const R::Error& error) {

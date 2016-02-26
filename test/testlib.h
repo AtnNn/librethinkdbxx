@@ -36,19 +36,13 @@ struct err {
         type(type_), message(message_), backtrace(std::move(backtrace_)) { }
 
     std::string convert_type() const {
-        if (type == "RqlRuntimeError") {
-            return "runtime error";
-        }
-        if (type == "RqlCompileError") {
-            return "compile error";
-        }
         return type;
     }
 
     static std::string trim_message(std::string msg) {
         size_t i = msg.find(":\n");
         if (i != std::string::npos) {
-            return msg.substr(0, i) + ".";
+            return msg.substr(0, i + 1);
         }
         return msg;
     }
@@ -66,8 +60,9 @@ struct err_regex {
     R::Array backtrace;
 };
 
-bool match(const char* pattern, const char* string);
+R::Object regex(const char* pattern);
 
+bool match(const char* pattern, const char* string);
 
 R::Object partial(R::Object&& object);
 R::Object partial(R::Array&& object);
@@ -76,8 +71,9 @@ R::Object arrlen(int n, R::Datum&& datum);
 R::Object arrlen(int n);
 R::Query new_table();
 std::string repeat(std::string&& s, int n);
-R::Query fetch(R::Cursor& cursor, int count);
+R::Query fetch(R::Cursor& cursor, int count=-1);
 R::Object bag(R::Array&& array);
+R::Object bag(R::Datum&& d);
 
 struct temp_table {
     temp_table() {
@@ -97,6 +93,7 @@ struct temp_table {
 
 void clean_slate();
 
+// std::string to_string(const R::Cursor&);
 std::string to_string(const R::Datum&);
 std::string to_string(const R::Error&);
 std::string to_string(const err_regex&);
@@ -134,12 +131,42 @@ void test_eq(const char* code, const T val, const U expected) {
                 it.second = false;
             }
         }
-        printf("%sFAILURE in ‘%s’:\n%s  Expected: ‘%s’\n%s   but got: ‘%s’\n",
-               indent(), code,
-               indent(), truncate(to_string(expected)).c_str(),
-               indent(), truncate(to_string(val)).c_str());
+        try {
+            printf("%sFAILURE in ‘%s’:\n%s  Expected: ‘%s’\n%s   but got: ‘%s’\n",
+                   indent(), code,
+                   indent(), truncate(to_string(expected)).c_str(),
+                   indent(), truncate(to_string(val)).c_str());
+        } catch (const R::Error& e) {
+            printf("FAILTURE: Failed to print failure description: %s\n", e.message.c_str());
+        } catch (...) {
+            printf("FAILTURE: Failed to print failure description\n");
+        }
     }
 }
 
+template <class U>
+void test_eq(const char* code, const R::Cursor& val, const U expected) {
+    try {
+        R::Datum result = val.to_datum();
+        test_eq(code, result, expected);
+    } catch (R::Error& error) {
+        test_eq(code, error, expected);
+    } 
+}
+
+int len(const R::Datum&);
+
+R::Query wait(int n);
+
 #define PacificTimeZone() (-7 * 3600)
 #define UTCTimeZone() (0)
+
+extern R::Datum nil;
+
+inline R::Cursor maybe_run(R::Cursor& c, R::Connection&, R::OptArgs&& o = {}) {
+    return std::move(c);
+}
+
+inline R::Cursor maybe_run(R::Query q, R::Connection& c, R::OptArgs&& o = {}) {
+    return q.run(c, std::move(o));
+}

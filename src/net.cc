@@ -339,14 +339,25 @@ Error Response::as_error() {
     }
     std::string err;
     using RT = Protocol::Response::ResponseType;
+    using ET = Protocol::Response::ErrorType;
     switch (type) {
     case RT::SUCCESS_SEQUENCE: err = "unexpected response: SUCCESS_SEQUENCE"; break;
     case RT::SUCCESS_PARTIAL:  err = "unexpected response: SUCCESS_PARTIAL"; break;
     case RT::SUCCESS_ATOM: err = "unexpected response: SUCCESS_ATOM"; break;
     case RT::WAIT_COMPLETE: err = "unexpected response: WAIT_COMPLETE"; break;
+    case RT::SERVER_INFO: err = "unexpected response: SERVER_INFO"; break;
     case RT::CLIENT_ERROR: err = "client error"; break;
     case RT::COMPILE_ERROR: err = "compile error"; break;
-    case RT::RUNTIME_ERROR: err = "runtime error"; break;
+    case RT::RUNTIME_ERROR:
+        switch (error_type) {
+        case ET::RESOURCE_LIMIT: err = "ReqlResourceLimitError"; break;
+        case ET::QUERY_LOGIC: err = "ReqlQueryLogicError"; break;
+        case ET::NON_EXISTENCE: err = "ReqlNonExistenceError"; break;
+        case ET::OP_FAILED: err = "ReqlOpFailedError"; break;
+        case ET::OP_INDETERMINATE: err = "ReqlOpIndeterminateError"; break;
+        case ET::USER: err = "ReqlUserError"; break;
+        default: err = "runtime error"; break;
+        }
     }
     throw Error("%s: %s", err.c_str(), repr.c_str());
 }
@@ -371,6 +382,29 @@ Protocol::Response::ResponseType response_type(double t) {
         return RT::RUNTIME_ERROR;
     default:
         throw Error("Unknown response type");
+    }
+}
+
+Protocol::Response::ErrorType runtime_error_type(double t) {
+    int n = static_cast<int>(t);
+    using ET = Protocol::Response::ErrorType;
+    switch (n) {
+    case static_cast<int>(ET::INTERNAL):
+        return ET::INTERNAL;
+    case static_cast<int>(ET::RESOURCE_LIMIT):
+        return ET::RESOURCE_LIMIT;
+    case static_cast<int>(ET::QUERY_LOGIC):
+        return ET::QUERY_LOGIC;
+    case static_cast<int>(ET::NON_EXISTENCE):
+        return ET::NON_EXISTENCE;
+    case static_cast<int>(ET::OP_FAILED):
+        return ET::OP_FAILED;
+    case static_cast<int>(ET::OP_INDETERMINATE):
+        return ET::OP_INDETERMINATE;
+    case static_cast<int>(ET::USER):
+        return ET::USER;
+    default:
+        throw Error("Unknown error type");
     }
 }
 

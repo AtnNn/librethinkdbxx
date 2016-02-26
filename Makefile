@@ -8,12 +8,10 @@ PYTHON ?= python3
 
 # Required build settings
 
-ifneq (,$(CXXFLAGS))
-  ifneq (no,$(DEBUG))
-    CXXFLAGS += -g
-  else
-    CXXFLAGS += -O3 -flto
-  endif
+ifneq (no,$(DEBUG))
+  CXXFLAGS += -ggdb
+else
+  CXXFLAGS += -O3 -flto
 endif
 
 CXXFLAGS += -std=c++11 -I'build/gen' -Wall -pthread -fPIC

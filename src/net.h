@@ -18,15 +18,20 @@ class ResponseBuffer;
 
 // Used internally to convert a raw response type into an enum
 Protocol::Response::ResponseType response_type(double t);
+Protocol::Response::ErrorType runtime_error_type(double t);
 
 // Contains a response from the server. Use the Cursor class to interact with these responses
 class Response {
 public:
     Response(Datum&& datum) :
         type(response_type(std::move(datum).extract_field("t").extract_number())),
+        error_type(datum.get_field("e") ?
+                   runtime_error_type(std::move(datum).extract_field("e").extract_number()) :
+                   Protocol::Response::ErrorType(0)),
         result(std::move(datum).extract_field("r").extract_array()) { }
     Error as_error();
     Protocol::Response::ResponseType type;
+    Protocol::Response::ErrorType error_type;
     Array result;
 };
 
@@ -86,6 +91,7 @@ std::unique_ptr<Connection> connect(std::string host = "localhost", int port = 2
 class Token {
 public:
     Token(Connection::WriteLock&);
+    Token() : conn(nullptr) { }
 
     Token(const Token&) = delete;
     Token(Token&& other) : conn(other.conn), token(other.token) {
