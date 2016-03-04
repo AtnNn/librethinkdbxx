@@ -88,12 +88,15 @@ std::string repeat(std::string&& s, int n) {
     return string;
 }
 
-R::Query fetch(R::Cursor& cursor, int count=0, double timeout=0) {
+R::Query fetch(R::Cursor& cursor, int count, double timeout) {
+    printf("fetch(..., %d, %lf)\n", count, timeout);
     R::Array array;
     int deadline = time(NULL) + int(timeout);
-    for (int i = 0; count == 0 || i < count; ++i) {
+    for (int i = 0; count == -1 || i < count; ++i) {
+        printf("fetching next (%d)\n", i);
         if (time(NULL) > deadline) break;
         array.emplace_back(cursor.next());
+        printf("got %s\n", write_datum(array[array.size()-1]).c_str());
     }
     return expr(std::move(array));
 }

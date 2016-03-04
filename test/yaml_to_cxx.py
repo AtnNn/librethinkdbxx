@@ -3,7 +3,7 @@ import sys
 from upstream.parsePolyglot import parseYAML
 from os import walk
 from os.path import join
-from re import sub, match, split
+from re import sub, match, split, DOTALL
 from collections import namedtuple
 import ast
 
@@ -33,7 +33,7 @@ def convert(python, prec, file, type):
         print("While translating: " + python, file=stderr)
         raise
     except SyntaxError as e:
-        raise Unhandled("syntax error: " + str(e) + ": " + python)
+        raise Unhandled("syntax error: " + str(e) + ": " + repr(python))
 
 def py_str(py):
     def maybe_unstr(s):
@@ -64,7 +64,8 @@ def rename(id):
         'int_cmp': 'int',
         'float_cmp': 'double',
         'range': 'R::range',
-        'list': ''
+        'list': '',
+        'R::union': 'R::union_',
     }.get(id, id)
 
 def to_cxx_str(expr):
@@ -74,6 +75,8 @@ def to_cxx_str(expr):
         return string(str(expr.n))
     if 'frozenset' in ast.dump(expr):
         raise Discard("frozenset not supported")
+    if type(expr) is ast.Name:
+        raise Discard("dict with non-string key")
     raise Unhandled("not string expr: " + ast.dump(expr))
 
 def is_null(expr):
@@ -385,7 +388,7 @@ name = sub('/', '_', argv[1].split('.')[0])
 
 enter("void %s() {" % name)
 
-p("enter_section(\"%s: %s\");" % (name, data['desc']))
+p("enter_section(\"%s: %s\");" % (name, data['desc'].replace('"', '\\"')))
 
 if 'table_variable_name' in data:
     for var in split(" |, ", data['table_variable_name']):
@@ -396,7 +399,7 @@ defined = []
 for py, ot, tp, runopts in python_tests(data["tests"]):
     try:
         maybe_discard(py, ot)
-        assignment = match("^(\w+) *= *([^=].*)$", py)
+        assignment = match("\\A(\\w+) *= *([^=].*)\\Z", py, DOTALL)
         if runopts:
             args = ", R::optargs(" + ', '.join(['"' + k + '", ' + convert(py_str(runopts[k]), 17, name, 'value') for k in runopts]) + ")"
         else:
@@ -430,7 +433,7 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
         pass
     except Unhandled as e:
         failed = True
-        print("Could not translate: " + str(e), file=stderr)
+        print(argv[1] + ": could not translate: " + str(e), file=stderr)
 
 p("exit_section();")
 

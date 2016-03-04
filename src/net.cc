@@ -346,8 +346,8 @@ Error Response::as_error() {
     case RT::SUCCESS_ATOM: err = "unexpected response: SUCCESS_ATOM"; break;
     case RT::WAIT_COMPLETE: err = "unexpected response: WAIT_COMPLETE"; break;
     case RT::SERVER_INFO: err = "unexpected response: SERVER_INFO"; break;
-    case RT::CLIENT_ERROR: err = "client error"; break;
-    case RT::COMPILE_ERROR: err = "compile error"; break;
+    case RT::CLIENT_ERROR: err = "ReqlClientError"; break;
+    case RT::COMPILE_ERROR: err = "ReqlCompileError"; break;
     case RT::RUNTIME_ERROR:
         switch (error_type) {
         case ET::RESOURCE_LIMIT: err = "ReqlResourceLimitError"; break;

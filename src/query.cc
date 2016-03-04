@@ -32,6 +32,7 @@ struct {
 } datum_to_query;
 
 Query::Query(Datum&& datum_) : datum(datum_.apply<Datum>(datum_to_query)) { }
+Query::Query(const Datum& datum_) : datum(datum_.apply<Datum>(datum_to_query)) { }
 
 Query::Query(Query&& orig, OptArgs&& new_optargs) : datum(Nil()) {
     Datum* cur = orig.datum.get_nth(2);

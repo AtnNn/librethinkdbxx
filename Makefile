@@ -30,7 +30,11 @@ skip_tests += changefeeds/squash # double run
 skip_tests += arity # arity errors are compile-time
 skip_tests += geo # geo
 
-upstream_tests := $(filter-out $(patsubst %,test/upstream/%%, $(skip_tests)), $(filter test/upstream/$(test_filter)%,$(shell find test/upstream -name '*.yaml')))
+upstream_tests := \
+  $(filter-out %.rb.%, \
+    $(filter-out $(patsubst %,test/upstream/%%, $(skip_tests)), \
+      $(filter test/upstream/$(test_filter)%, \
+        $(shell find test/upstream -name '*.yaml'))))
 upstream_tests_cc := $(patsubst %.yaml, build/tests/%.cc, $(upstream_tests))
 upstream_tests_o := $(patsubst %.cc, %.o, $(upstream_tests_cc))
 
@@ -78,7 +82,7 @@ build/tests/%.cc: %.yaml test/yaml_to_cxx.py
 	$(PYTHON) test/yaml_to_cxx.py $< > $@
 
 build/tests/upstream_tests.cc: $(upstream_tests) test/gen_index_cxx.py FORCE | build/tests/.
-	@echo '$(PYTHON) test/gen_index_cxx.py ... > $@'
+	@echo '$(PYTHON) test/gen_index_cxx.py $(wordlist 1,5,$(upstream_tests)) ... > $@'
 	@$(PYTHON) test/gen_index_cxx.py $(upstream_tests) > $@
 
 build/tests/%.o: build/tests/%.cc build/include/rethinkdb.h test/testlib.h | build/tests/.
@@ -88,7 +92,7 @@ build/tests/%.o: test/%.cc test/testlib.h build/include/rethinkdb.h | build/test
 	$(CXX) -o $@ $(CXXFLAGS) -isystem build/include -I test -c $<
 
 build/test: build/tests/testlib.o build/tests/test.o build/tests/upstream_tests.o $(upstream_tests_o) build/librethinkdb++.a
-	@echo $(CXX) -o $@ $(CXXFLAGS) build/librethinkdb++.a ...
+	@echo $(CXX) -o $@ $(CXXFLAGS) $(wordlist 1,5,$^) ...
 	@$(CXX) -o $@ $(CXXFLAGS) build/librethinkdb++.a $^
 
 .PHONY: test

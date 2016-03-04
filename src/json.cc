@@ -1,4 +1,5 @@
 
+#include <cmath>
 #include <cstring>
 #include <locale.h>
 
@@ -249,7 +250,11 @@ struct datum_writer {
         out.write(boolean ? "true" : "false");
     }
     void operator() (double number, OutputStream& out) {
-        out.printf("%.17lg", number);
+        if (number == 0 && std::signbit(number) == 1) {
+            out.write("-0.0");
+        } else {
+            out.printf("%.17lg", number);
+        }
     }
     void operator() (const std::string& string, OutputStream& out) {
         out.write("\"");

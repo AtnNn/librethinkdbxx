@@ -31,6 +31,7 @@ public:
     Query& operator= (Query&& other) = default;
 
     explicit Query(Datum&&);
+    explicit Query(const Datum&);
     explicit Query(OptArgs&&);
 
     // Create a copy of the Query
@@ -285,6 +286,7 @@ public:
     C0(floor, FLOOR)
     C0(ceil, CEIL)
     C0(round, ROUND)
+    C0(values, VALUES)
 
     // The expansion of this macro fails to compile on some versions of GCC and Clang:
     // C_(operator(), FUNCALL, no_wrap)
@@ -476,7 +478,7 @@ C1(epoch_time, EPOCH_TIME, no_wrap)
 CO1(iso8601, ISO8601, no_wrap)
 CO1(js, JAVASCRIPT, no_wrap)
 C1(args, ARGS, no_wrap)
-C3(branch, BRANCH)
+C_(branch, BRANCH, no_wrap)
 C0(range)
 C1(range, RANGE, no_wrap)
 C2(range, RANGE)
@@ -503,7 +505,8 @@ C_(map, MAP, func_wrap)
 C1(floor, FLOOR, no_wrap)
 C1(ceil, CEIL, no_wrap)
 C1(round, ROUND, no_wrap)
-
+C_(union_, UNION, no_wrap)
+    
 #undef C0
 #undef C1
 #undef C2

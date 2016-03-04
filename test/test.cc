@@ -12,6 +12,7 @@ void test_json(const char* string, const char* ret = "") {
 
 void test_json_parse_print() {
     enter_section("json");
+    test_json("-0.0", "-0.0");
     test_json("null");
     test_json("1.2");
     test_json("1.2e20", "1.2e+20");
@@ -34,7 +35,7 @@ void test_reql() {
     enter_section("reql");
     TEST_EQ((R::expr(1) + 2).run(*conn), R::Datum(3));
     TEST_EQ(R::range(4).count().run(*conn), R::Datum(4));
-    TEST_EQ(R::js("Math.abs")(-1).run(*conn), 1);
+    TEST_EQ(R::js("Math.abs")(-1).run(*conn), 1); 
     exit_section();
 }
 

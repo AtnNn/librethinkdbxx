@@ -71,7 +71,7 @@ R::Object arrlen(int n, R::Datum&& datum);
 R::Object arrlen(int n);
 R::Query new_table();
 std::string repeat(std::string&& s, int n);
-R::Query fetch(R::Cursor& cursor, int count=-1);
+R::Query fetch(R::Cursor& cursor, int count=-1, double timeout=0);
 R::Object bag(R::Array&& array);
 R::Object bag(R::Datum&& d);
 
@@ -169,4 +169,18 @@ inline R::Cursor maybe_run(R::Cursor& c, R::Connection&, R::OptArgs&& o = {}) {
 
 inline R::Cursor maybe_run(R::Query q, R::Connection& c, R::OptArgs&& o = {}) {
     return q.run(c, std::move(o));
+}
+
+inline int operator+(R::Datum a, int b) {
+    return a.extract_number() + b;
+}
+
+inline R::Array operator*(R::Array arr, int n) {
+    R::Array ret;
+    for(int i = 0; i < n; i++) {
+        for(const auto& it: arr) {
+            ret.push_back(it);
+        }
+    }
+    return ret;
 }
