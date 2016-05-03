@@ -68,8 +68,7 @@ Cursor Query::run(Connection& conn, OptArgs&& opts) {
 }
 
 struct {
-    Datum operator() (Object&& object, const std::map<int, int>& subst, bool args) {
-        (void) args;
+    Datum operator() (Object&& object, const std::map<int, int>& subst, bool) {
         Object ret;
         for (auto& it : object) {
             ret.emplace(std::move(it.first), std::move(it.second).apply<Datum>(*this, subst, false));
