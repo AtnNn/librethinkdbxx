@@ -63,6 +63,11 @@ public:
     Datum(Protocol::Term::TermType type) : Datum(static_cast<double>(type)) { }
     Datum(const char* string) : Datum(static_cast<std::string>(string)) { }
 
+#ifdef __APPLE__
+    Datum(unsigned long number_) : Datum(static_cast<double>(number_)) { }
+    Datum(long number_) : Datum(static_cast<double>(number_)) { }
+#endif
+
     // Cursors are implicitly converted into datums
     Datum(Cursor&&);
     Datum(const Cursor&);

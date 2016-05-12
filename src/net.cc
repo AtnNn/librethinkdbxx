@@ -11,6 +11,16 @@
 #include "stream.h"
 #include "json.h"
 
+extern "C" {
+static inline void rdbxx_debug(uint64_t token_got, const char* msg) {
+#ifdef __APPLE__
+    fprintf(stderr, "[%llu] << %s\n", token_got, msg);
+#else
+    fprintf(stderr, "[%zu] << %s\n", token_got, msg);
+#endif
+}
+}
+
 namespace RethinkDB {
 
 const int debug_net = 0;
@@ -270,7 +280,7 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard)
         ResponseBuffer stream(this, length);
         Datum datum = read_datum(stream);
 
-        if (debug_net > 0) fprintf(stderr, "[%zu] << %s\n", token_got, write_datum(datum).c_str());
+        if (debug_net > 0) ::rdbxx_debug(token_got, write_datum(datum).c_str());
 
         Response response(std::move(datum));
 
@@ -316,7 +326,7 @@ Token Connection::start_query(const std::string& query) {
 }
 
 void Connection::WriteLock::send_query(uint64_t token, const std::string& query) {
-    if (debug_net > 0) fprintf(stderr, "[%zu] >> %s\n", token, query.c_str());
+    if (debug_net > 0) ::rdbxx_debug(token, query.c_str());
     char buf[12];
     memcpy(buf, &token, 8);
     uint32_t size = query.size();

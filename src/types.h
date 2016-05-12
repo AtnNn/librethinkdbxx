@@ -4,6 +4,10 @@
 #include <map>
 #include <ctime>
 
+#ifdef __APPLE__
+#include <string>
+#endif
+
 namespace RethinkDB {
 
 class Datum;
