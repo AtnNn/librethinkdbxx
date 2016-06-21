@@ -1,4 +1,6 @@
 
+#include <cstdlib>
+#include <xlocale.h>
 #include <cstring>
 #include <locale.h>
 
