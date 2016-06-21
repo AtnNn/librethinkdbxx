@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <cmath>
 #include "types.h"
 #include "error.h"
 
