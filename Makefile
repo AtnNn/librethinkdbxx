@@ -11,7 +11,7 @@ PYTHON ?= python3
 ifneq (no,$(DEBUG))
   CXXFLAGS += -ggdb
 else
-  CXXFLAGS += -O3 -flto
+  CXXFLAGS += -O3 # -flto
 endif
 
 CXXFLAGS += -std=c++11 -I'build/gen' -Wall -pthread -fPIC
@@ -34,7 +34,7 @@ upstream_tests := \
   $(filter-out %.rb.%, \
     $(filter-out $(patsubst %,test/upstream/%%, $(skip_tests)), \
       $(filter test/upstream/$(test_filter)%, \
-        $(shell find test/upstream -name '*.yaml'))))
+        $(shell find test/upstream -name '*.yaml' | egrep -v '.(rb|js).yaml$$'))))
 upstream_tests_cc := $(patsubst %.yaml, build/tests/%.cc, $(upstream_tests))
 upstream_tests_o := $(patsubst %.cc, %.o, $(upstream_tests_cc))
 
