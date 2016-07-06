@@ -94,6 +94,12 @@ public:
     Token() : conn(nullptr) { }
 
     Token(const Token&) = delete;
+    Token& operator=(Token&& other){
+        token = other.token;
+        conn = other.conn;
+        other.conn = NULL;
+        return *this;
+    }
     Token(Token&& other) : conn(other.conn), token(other.token) {
         other.conn = NULL;
     }

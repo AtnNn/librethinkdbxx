@@ -17,6 +17,7 @@ public:
     Cursor(Token&&);
     Cursor(Token&&, Response&&);
     Cursor(Cursor&&) = default;
+    Cursor& operator=(Cursor&&) = default;
     Cursor(Token&&, Datum&&);
     Cursor(Datum&&);
 
