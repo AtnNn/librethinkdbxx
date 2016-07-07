@@ -193,3 +193,5 @@ inline R::Array array_range(int x, int y) {
     return ret;
 }
 
+R::Array append(R::Array lhs, R::Array rhs);
+

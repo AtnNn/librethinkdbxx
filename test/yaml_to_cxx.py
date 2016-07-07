@@ -56,14 +56,14 @@ def rename(id):
         'union': 'union_',
         'False': 'false',
         'True': 'true',
-        'xrange': 'array_range',
+        'xrange': 'R::range',
         'None': 'R::Nil()',
         'null': 'R::Nil()',
         'delete': 'delete_',
         'float': 'double',
         'int_cmp': 'int',
         'float_cmp': 'double',
-        'range': 'array_range',
+        'range': 'R::range',
         'list': '',
         'R::union': 'R::union_',
     }.get(id, id)
@@ -137,6 +137,8 @@ def to_cxx(expr, prec, ctx):
                 raise Discard("frozenset not supported")
             elif expr.id in ctx.vars:
                 return parens(prec, 3, "*" + expr.id)
+            elif (expr.id == 'range' or expr.id == 'xrange') and ctx.type != 'query':
+                return 'array_range'
             return rename(expr.id)
         elif t == NameConstant:
             if expr.value == True:
@@ -180,7 +182,11 @@ def to_cxx(expr, prec, ctx):
         elif t == ast.BinOp:
             if type(expr.op) is ast.Mult and type(expr.left) is ast.Str:
                 return "repeat(" + to_cxx(expr.left, 17, ctx) + ", " + to_cxx(expr.right, 17, ctx) + ")"
+            ll = type(expr.left) is ast.List or type(expr.left) is ast.ListComp
+            rl = type(expr.right) is ast.List or type(expr.right) is ast.ListComp
             op, op_prec = convert_op(expr.op)
+            if type(expr.op) is ast.Add and ll and rl:
+                return "append(" + to_cxx_expr(expr.left, op_prec, ctx) + ", " + to_cxx(expr.right, op_prec, ctx) + ")"
             if op_prec: 
                 return parens(prec, op_prec, to_cxx_expr(expr.left, op_prec, ctx) + " " + op + " " + to_cxx(expr.right, op_prec, ctx))
             else:

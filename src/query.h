@@ -177,7 +177,7 @@ public:
     C1(nth, NTH, no_wrap)
     C1(offsets_of, OFFSETS_OF, func_wrap)
     C0(is_empty, IS_EMPTY)
-    C1(union_, UNION, no_wrap)
+    CO_(union_, UNION, no_wrap)
     C1(sample, SAMPLE, no_wrap)
     CO_(group, GROUP, func_wrap)
     C0(ungroup, UNGROUP)
