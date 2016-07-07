@@ -184,3 +184,12 @@ inline R::Array operator*(R::Array arr, int n) {
     }
     return ret;
 }
+
+inline R::Array array_range(int x, int y) {
+    R::Array ret;
+    for(int i = x; i < y; ++i) {
+        ret.push_back(i);
+    }
+    return ret;
+}
+

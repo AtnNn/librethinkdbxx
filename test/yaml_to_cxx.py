@@ -56,14 +56,14 @@ def rename(id):
         'union': 'union_',
         'False': 'false',
         'True': 'true',
-        'xrange': 'R::range',
+        'xrange': 'array_range',
         'None': 'R::Nil()',
         'null': 'R::Nil()',
         'delete': 'delete_',
         'float': 'double',
         'int_cmp': 'int',
         'float_cmp': 'double',
-        'range': 'R::range',
+        'range': 'array_range',
         'list': '',
         'R::union': 'R::union_',
     }.get(id, id)
@@ -190,9 +190,12 @@ def to_cxx(expr, prec, ctx):
             assert type(expr.generators[0]) == ast.comprehension
             assert type(expr.generators[0].target) == ast.Name
             seq = to_cxx(expr.generators[0].iter, 2, ctx)
-            var = expr.generators[0].target.id
-            body = to_cxx(expr.elt, 17, ctx_set(ctx, vars = ctx.vars + [var], type='query'))
-            return seq + ".map([=](R::Var " + var + "){ return " + body + "; })"
+            if ctx.type == 'query':
+                var = expr.generators[0].target.id
+                body = to_cxx(expr.elt, 17, ctx_set(ctx, vars = ctx.vars + [var], type='query'))
+                return seq + ".map([=](R::Var " + var + "){ return " + body + "; })"
+            else:
+                return seq
         elif t == ast.Compare:
             assert len(expr.ops) == 1
             assert len(expr.comparators) == 1

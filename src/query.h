@@ -182,6 +182,7 @@ public:
     CO_(group, GROUP, func_wrap)
     C0(ungroup, UNGROUP)
     C1(reduce, REDUCE, no_wrap)
+    CO2(fold, FOLD, no_wrap)
     C0(count, COUNT)
     C1(count, COUNT, func_wrap)
     C0(sum, SUM)
