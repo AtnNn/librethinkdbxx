@@ -507,7 +507,21 @@ C1(floor, FLOOR, no_wrap)
 C1(ceil, CEIL, no_wrap)
 C1(round, ROUND, no_wrap)
 C_(union_, UNION, no_wrap)
-    
+C_(group, GROUP, func_wrap)
+C1(count, COUNT, no_wrap)
+C2(count, COUNT)
+C1(sum, SUM, no_wrap)
+C2(sum, SUM)
+C1(avg, AVG, no_wrap)
+C2(avg, AVG)
+C1(min, MIN, no_wrap)
+C2(min, MIN)
+C1(max, MAX, no_wrap)
+C2(max, MAX)
+C1(distinct, DISTINCT, no_wrap)
+C1(contains, CONTAINS, no_wrap)
+C2(contains, CONTAINS)
+
 #undef C0
 #undef C1
 #undef C2
