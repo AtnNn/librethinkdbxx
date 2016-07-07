@@ -65,7 +65,7 @@ def rename(id):
         'float_cmp': 'double',
         'range': 'R::range',
         'list': '',
-        'R::union': 'R::union_',
+        'R::union': 'R::union_'
     }.get(id, id)
 
 def to_cxx_str(expr):
@@ -139,6 +139,8 @@ def to_cxx(expr, prec, ctx):
                 return parens(prec, 3, "*" + expr.id)
             elif (expr.id == 'range' or expr.id == 'xrange') and ctx.type != 'query':
                 return 'array_range'
+            elif expr.id == 'nil' and ctx.type == 'query':
+                return 'R::expr(nil)'
             return rename(expr.id)
         elif t == NameConstant:
             if expr.value == True:
