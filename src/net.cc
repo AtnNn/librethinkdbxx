@@ -270,7 +270,7 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard)
         ResponseBuffer stream(this, length);
         Datum datum = read_datum(stream);
 
-        if (debug_net > 0) fprintf(stderr, "[%zu] << %s\n", token_got, write_datum(datum).c_str());
+        if (debug_net > 0) fprintf(stderr, "[%llu] << %s\n", token_got, write_datum(datum).c_str());
 
         Response response(std::move(datum));
 
@@ -316,7 +316,7 @@ Token Connection::start_query(const std::string& query) {
 }
 
 void Connection::WriteLock::send_query(uint64_t token, const std::string& query) {
-    if (debug_net > 0) fprintf(stderr, "[%zu] >> %s\n", token, query.c_str());
+    if (debug_net > 0) fprintf(stderr, "[%llu] >> %s\n", token, query.c_str());
     char buf[12];
     memcpy(buf, &token, 8);
     uint32_t size = query.size();

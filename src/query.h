@@ -177,11 +177,12 @@ public:
     C1(nth, NTH, no_wrap)
     C1(offsets_of, OFFSETS_OF, func_wrap)
     C0(is_empty, IS_EMPTY)
-    C1(union_, UNION, no_wrap)
+    CO_(union_, UNION, no_wrap)
     C1(sample, SAMPLE, no_wrap)
     CO_(group, GROUP, func_wrap)
     C0(ungroup, UNGROUP)
     C1(reduce, REDUCE, no_wrap)
+    CO2(fold, FOLD, no_wrap)
     C0(count, COUNT)
     C1(count, COUNT, func_wrap)
     C0(sum, SUM)
@@ -347,13 +348,15 @@ public:
     // Used internally to implement array()
     static Query make_binary(Query&&);
 
+    Datum get_datum() const;
+
 private:
     friend class Var;
 
     template <class _>
     Var mkvar(std::vector<int>& vars);
 
-    template <class F, class ...A>
+    template <class F, class ... Vars>
     void set_function(F);
 
     Datum alpha_rename(Query&&);
@@ -395,15 +398,15 @@ Var Query::mkvar(std::vector<int>& vars) {
     return Var(&*vars.rbegin());
 }
 
-template <class F, class ...A>
+template <class F, class ... Vars>
 void Query::set_function(F f) {
     std::vector<int> vars;
-    vars.reserve(sizeof...(A));
-    Query body = f(mkvar<A>(vars)...);
+    vars.reserve(sizeof...(Vars));
+    Query body = f(mkvar<Vars>(vars)...);
     int* low = &*vars.begin();
-    int* high = &*vars.end();
+    int* high = &*(vars.end() - 1);
     for (auto it = body.free_vars.begin(); it != body.free_vars.end(); ) {
-        if (it->second >= low && it->second < high) {
+        if (it->second >= low && it->second <= high) {
             if (it->first != *it->second) {
                 throw Error("Internal error: variable index mis-match");
             }
@@ -506,7 +509,21 @@ C1(floor, FLOOR, no_wrap)
 C1(ceil, CEIL, no_wrap)
 C1(round, ROUND, no_wrap)
 C_(union_, UNION, no_wrap)
-    
+C_(group, GROUP, func_wrap)
+C1(count, COUNT, no_wrap)
+C_(count, COUNT, func_wrap)
+C1(sum, SUM, no_wrap)
+C_(sum, SUM, func_wrap)
+C1(avg, AVG, no_wrap)
+C_(avg, AVG, func_wrap)
+C1(min, MIN, no_wrap)
+C_(min, MIN, func_wrap)
+C1(max, MAX, no_wrap)
+C_(max, MAX, func_wrap)
+C1(distinct, DISTINCT, no_wrap)
+C1(contains, CONTAINS, no_wrap)
+C_(contains, CONTAINS, func_wrap)
+
 #undef C0
 #undef C1
 #undef C2

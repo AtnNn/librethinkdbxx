@@ -84,7 +84,7 @@ struct temp_table {
         }
         name_[14] = 0;
         R::table_create(name_).run(*conn);
-        name = name_; 
+        name = name_;
     }
     ~temp_table() { R::table_drop(name).run(*conn); }
     R::Query table() { return R::table(name); }
@@ -94,6 +94,7 @@ struct temp_table {
 void clean_slate();
 
 // std::string to_string(const R::Cursor&);
+std::string to_string(const R::Query&);
 std::string to_string(const R::Datum&);
 std::string to_string(const R::Error&);
 std::string to_string(const err_regex&);
@@ -151,7 +152,7 @@ void test_eq(const char* code, const R::Cursor& val, const U expected) {
         test_eq(code, result, expected);
     } catch (R::Error& error) {
         test_eq(code, error, expected);
-    } 
+    }
 }
 
 int len(const R::Datum&);
@@ -184,3 +185,14 @@ inline R::Array operator*(R::Array arr, int n) {
     }
     return ret;
 }
+
+inline R::Array array_range(int x, int y) {
+    R::Array ret;
+    for(int i = x; i < y; ++i) {
+        ret.push_back(i);
+    }
+    return ret;
+}
+
+R::Array append(R::Array lhs, R::Array rhs);
+

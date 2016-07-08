@@ -14,6 +14,10 @@ std::unique_ptr<R::Connection> conn;
 //     return "<Cursor>";
 // }
 
+std::string to_string(const R::Query& query) {
+    return to_string(query.get_datum());
+}
+
 std::string to_string(const R::Datum& datum) {
     return write_datum(datum);
 }
@@ -146,7 +150,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             const R::Array* data = got.get_field("data")->get_array();
             R::Object object;
             for (R::Datum it : *data) {
-                object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1)); 
+                object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1));
             }
             return equal(object, expected);
         }
@@ -197,7 +201,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
                 if (!partial_datum) break;
                 const R::Array* partial = partial_datum->get_array();
                 if (!partial) break;
-                
+
                 for (const auto& want : *partial) {
                     bool match = false;
                     for (const auto& have : *array) {
@@ -257,7 +261,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
 }
 
 R::Object partial(R::Array&& array) {
-    return R::Object{{"special", "partial"}, {"partial", std::move(array)}};   
+    return R::Object{{"special", "partial"}, {"partial", std::move(array)}};
 }
 
 R::Object regex(const char* pattern) {
@@ -293,3 +297,16 @@ R::Query wait(int n) {
 }
 
 R::Datum nil = R::Nil();
+
+R::Array append(R::Array lhs, R::Array rhs) {
+    if (lhs.empty()) {
+        lhs = std::move(rhs);
+    } else {
+        lhs.reserve(lhs.size() + rhs.size());
+        std::move(std::begin(rhs), std::end(rhs), std::back_inserter(lhs));
+        rhs.clear();
+    }
+
+    return lhs;
+}
+

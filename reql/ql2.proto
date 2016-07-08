@@ -48,6 +48,7 @@ message VersionDummy { // We need to wrap it like this for some
         V0_2      = 0x723081e1; // Authorization key during handshake
         V0_3      = 0x5f75e83e; // Authorization key and protocol during handshake
         V0_4      = 0x400c2d20; // Queries execute in parallel
+        V1_0      = 0x34c2bdc3; // Users and permissions
     }
 
     // The protocol to use after the handshake, specified in V0_3
@@ -67,14 +68,12 @@ message VersionDummy { // We need to wrap it like this for some
 // * A [SERVER_INFO] query. The server answers with a [SERVER_INFO] [Response].
 message Query {
     enum QueryType {
-        START    = 1; // Start a new query.
-        CONTINUE = 2; // Continue a query that returned [SUCCESS_PARTIAL]
-                      // (see [Response]).
-        STOP     = 3; // Stop a query partway through executing.
-        NOREPLY_WAIT = 4;
-                      // Wait for noreply operations to finish.
-        SERVER_INFO = 5;
-                      // Get server information.
+        START        = 1; // Start a new query.
+        CONTINUE     = 2; // Continue a query that returned [SUCCESS_PARTIAL]
+                          // (see [Response]).
+        STOP         = 3; // Stop a query partway through executing.
+        NOREPLY_WAIT = 4; // Wait for noreply operations to finish.
+        SERVER_INFO  = 5; // Get server information.
     }
     optional QueryType type = 1;
     // A [Term] is how we represent the operations we want a query to perform.
@@ -100,8 +99,8 @@ message Query {
 // A backtrace frame (see `backtrace` in Response below)
 message Frame {
     enum FrameType {
-        POS = 1; // Error occured in a positional argument.
-        OPT = 2; // Error occured in an optional argument.
+        POS = 1; // Error occurred in a positional argument.
+        OPT = 2; // Error occurred in an optional argument.
     }
     optional FrameType type = 1;
     optional int64 pos = 2; // The index of the positional argument.
@@ -123,7 +122,9 @@ message Response {
                                // more of the sequence.  Keep sending [CONTINUE]
                                // queries until you get back [SUCCESS_SEQUENCE].
         WAIT_COMPLETE     = 4; // A [NOREPLY_WAIT] query completed.
-        SERVER_INFO       = 5; // The data for a [SERVER_INFO] request.
+        SERVER_INFO       = 5; // The data for a [SERVER_INFO] request.  This is
+                               // the same as `SUCCESS_ATOM` except that there will
+                               // never be profiling data.
 
         // These response types indicate failure.
         CLIENT_ERROR  = 16; // Means the client is buggy.  An example is if the
@@ -149,6 +150,7 @@ message Response {
         OP_FAILED = 4100000;
         OP_INDETERMINATE = 4200000;
         USER = 5000000;
+        PERMISSION_ERROR = 6000000;
     }
     optional ErrorType error_type = 7;
 
@@ -178,14 +180,15 @@ message Response {
 
     optional int64 token = 2; // Indicates what [Query] this response corresponds to.
 
-    // [response] contains 1 RQL datum if [type] is [SUCCESS_ATOM], or many RQL
-    // data if [type] is [SUCCESS_SEQUENCE] or [SUCCESS_PARTIAL].  It contains 1
+    // [response] contains 1 RQL datum if [type] is [SUCCESS_ATOM] or
+    // [SERVER_INFO].  [response] contains many RQL data if [type] is
+    // [SUCCESS_SEQUENCE] or [SUCCESS_PARTIAL].  [response] contains 1
     // error message (of type [R_STR]) in all other cases.
     repeated Datum response = 3;
 
     // If [type] is [CLIENT_ERROR], [TYPE_ERROR], or [RUNTIME_ERROR], then a
     // backtrace will be provided.  The backtrace says where in the query the
-    // error occured.  Ideally this information will be presented to the user as
+    // error occurred.  Ideally this information will be presented to the user as
     // a pretty-printed version of their query with the erroneous section
     // underlined.  A backtrace is a series of 0 or more [Frame]s, each of which
     // specifies either the index of a positional argument or the name of an
@@ -417,6 +420,8 @@ message Term {
                         // The arity of the function should be
                         // Sequence..., Function(sizeof...(Sequence)) -> Sequence
 
+        FOLD      = 187; // Sequence, Datum, Function(2), {Function(3), Function(1)
+
         // Filter a sequence with either a function or a shortcut
         // object (see API docs for details).  The body of FILTER is
         // wrapped in an implicit `.default(false)`, and you can
@@ -548,6 +553,11 @@ message Term {
         // Ensures that previously issued soft-durability writes are complete and
         // written to disk.
         SYNC          = 138; // Table -> OBJECT
+
+        // Set global, database, or table-specific permissions
+        GRANT         = 188; //          -> OBJECT
+                             // Database -> OBJECT
+                             // Table    -> OBJECT
 
         // * Secondary indexes OPs
         // Creates a new secondary index with a particular name and definition.

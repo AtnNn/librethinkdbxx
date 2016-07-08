@@ -35,7 +35,7 @@ void test_reql() {
     enter_section("reql");
     TEST_EQ((R::expr(1) + 2).run(*conn), R::Datum(3));
     TEST_EQ(R::range(4).count().run(*conn), R::Datum(4));
-    TEST_EQ(R::js("Math.abs")(-1).run(*conn), 1); 
+    TEST_EQ(R::js("Math.abs")(-1).run(*conn), 1);
     exit_section();
 }
 

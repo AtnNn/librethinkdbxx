@@ -19,6 +19,9 @@ CXXFLAGS += -std=c++11 -I'build/gen' -Wall -pthread -fPIC
 prefix ?= /usr
 DESTDIR ?=
 
+.DELETE_ON_ERROR:
+SHELL := /bin/bash
+
 modules := net datum json query cursor types utils
 headers := utils error stream types datum json net cursor query
 
@@ -50,13 +53,22 @@ build/librethinkdb++.a: $(o_files)
 build/librethinkdb++.so: $(o_files)
 	$(CXX) -o $@ $(CXXFLAGS) -shared $^
 
-build/obj/%.o: src/%.cc build/gen/protocol_defs.h
+build/obj/%.o: src/%.cc build/gen/protocol_defs.h build/gen/config.h
 	@mkdir -p $(dir $@)
 	@mkdir -p $(dir build/dep/$*.d)
 	$(CXX) -o $@ $(CXXFLAGS) -c $< -MP -MQ $@ -MD -MF build/dep/$*.d
 
 build/gen/protocol_defs.h: reql/ql2.proto reql/gen.py | build/gen/.
 	$(PYTHON) reql/gen.py $< > $@
+
+define define_if_builds
+$(CXX) $(CXXFLAGS) -Wnone -o /dev/null -x c++ <(echo $$'$2\nint main(){ $3; }') 2>/dev/null >/dev/null && echo '#define $1'
+endef
+
+build/gen/config.h:
+	$(call define_if_builds, USE_LOCALE_H, #include <locale.h>, char *c; locale_t l; strtod_l(c, &c, l)) || \
+	  $(call define_if_builds, USE_XLOCALE_H, #include <xlocale.h>\n#include<stdlib.h>, char *c; locale_t l; strtod_l(c, &c, l)) \
+	  > $@
 
 clean:
 	rm -rf build

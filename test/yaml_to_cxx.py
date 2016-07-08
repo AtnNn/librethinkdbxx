@@ -65,7 +65,7 @@ def rename(id):
         'float_cmp': 'double',
         'range': 'R::range',
         'list': '',
-        'R::union': 'R::union_',
+        'R::union': 'R::union_'
     }.get(id, id)
 
 def to_cxx_str(expr):
@@ -108,8 +108,8 @@ def to_cxx(expr, prec, ctx):
             else:
                 return repr(expr.n)
         elif t == ast.Call:
-            assert not expr.kwargs
-            assert not expr.starargs
+            #assert not expr.kwargs
+            #assert not expr.starargs
             return to_cxx(expr.func, 2, ctx_set(ctx, context='function')) + to_args(expr.func, expr.args, expr.keywords, ctx)
         elif t == ast.Attribute:
             if type(expr.value) is ast.Name:
@@ -137,6 +137,10 @@ def to_cxx(expr, prec, ctx):
                 raise Discard("frozenset not supported")
             elif expr.id in ctx.vars:
                 return parens(prec, 3, "*" + expr.id)
+            elif (expr.id == 'range' or expr.id == 'xrange') and ctx.type != 'query':
+                return 'array_range'
+            elif expr.id == 'nil' and ctx.type == 'query':
+                return 'R::expr(nil)'
             return rename(expr.id)
         elif t == NameConstant:
             if expr.value == True:
@@ -180,7 +184,11 @@ def to_cxx(expr, prec, ctx):
         elif t == ast.BinOp:
             if type(expr.op) is ast.Mult and type(expr.left) is ast.Str:
                 return "repeat(" + to_cxx(expr.left, 17, ctx) + ", " + to_cxx(expr.right, 17, ctx) + ")"
+            ll = type(expr.left) is ast.List or type(expr.left) is ast.ListComp
+            rl = type(expr.right) is ast.List or type(expr.right) is ast.ListComp
             op, op_prec = convert_op(expr.op)
+            if type(expr.op) is ast.Add and ll and rl:
+                return "append(" + to_cxx_expr(expr.left, op_prec, ctx) + ", " + to_cxx(expr.right, op_prec, ctx) + ")"
             if op_prec: 
                 return parens(prec, op_prec, to_cxx_expr(expr.left, op_prec, ctx) + " " + op + " " + to_cxx(expr.right, op_prec, ctx))
             else:
@@ -190,9 +198,12 @@ def to_cxx(expr, prec, ctx):
             assert type(expr.generators[0]) == ast.comprehension
             assert type(expr.generators[0].target) == ast.Name
             seq = to_cxx(expr.generators[0].iter, 2, ctx)
-            var = expr.generators[0].target.id
-            body = to_cxx(expr.elt, 17, ctx_set(ctx, vars = ctx.vars + [var], type='query'))
-            return seq + ".map([=](R::Var " + var + "){ return " + body + "; })"
+            if ctx.type == 'query':
+                var = expr.generators[0].target.id
+                body = to_cxx(expr.elt, 17, ctx_set(ctx, vars = ctx.vars + [var], type='query'))
+                return seq + ".map([=](R::Var " + var + "){ return " + body + "; })"
+            else:
+                return seq
         elif t == ast.Compare:
             assert len(expr.ops) == 1
             assert len(expr.comparators) == 1
