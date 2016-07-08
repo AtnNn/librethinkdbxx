@@ -145,7 +145,6 @@ int gen_var_id() {
     return ::random() % (1<<30);
 }
 
-
 C0_IMPL(db_list, DB_LIST)
 C0_IMPL(table_list, TABLE_LIST)
 C0_IMPL(random, RANDOM)
@@ -287,6 +286,10 @@ Query sunday(TT::SUNDAY, {});
 
 Query Query::copy() const {
     return *this;
+}
+
+Datum Query::get_datum() const {
+    return datum;
 }
 
 }

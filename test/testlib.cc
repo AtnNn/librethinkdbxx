@@ -14,6 +14,10 @@ std::unique_ptr<R::Connection> conn;
 //     return "<Cursor>";
 // }
 
+std::string to_string(const R::Query& query) {
+    return to_string(query.get_datum());
+}
+
 std::string to_string(const R::Datum& datum) {
     return write_datum(datum);
 }

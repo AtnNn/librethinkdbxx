@@ -348,6 +348,8 @@ public:
     // Used internally to implement array()
     static Query make_binary(Query&&);
 
+    Datum get_datum() const;
+
 private:
     friend class Var;
 
