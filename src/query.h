@@ -404,9 +404,9 @@ void Query::set_function(F f) {
     vars.reserve(sizeof...(A));
     Query body = f(mkvar<A>(vars)...);
     int* low = &*vars.begin();
-    int* high = &*vars.end();
+    int* high = &*(vars.end() - 1);
     for (auto it = body.free_vars.begin(); it != body.free_vars.end(); ) {
-        if (it->second >= low && it->second < high) {
+        if (it->second >= low && it->second <= high) {
             if (it->first != *it->second) {
                 throw Error("Internal error: variable index mis-match");
             }
