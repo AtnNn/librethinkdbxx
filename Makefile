@@ -62,7 +62,7 @@ build/gen/protocol_defs.h: reql/ql2.proto reql/gen.py | build/gen/.
 	$(PYTHON) reql/gen.py $< > $@
 
 define define_if_builds
-$(CXX) $(CXXFLAGS) -Wnone -o /dev/null -x c++ <(echo $$'$2\nint main(){ $3; }') 2>/dev/null >/dev/null && echo '#define $1'
+$(CXX) $(CXXFLAGS) -w -o /dev/null -x c++ <(echo $$'$2\nint main(){ $3; }') 2>/dev/null >/dev/null && echo '#define $1'
 endef
 
 build/gen/config.h:
