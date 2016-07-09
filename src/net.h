@@ -10,6 +10,8 @@
 #include "datum.h"
 #include "error.h"
 
+#define DEFAULT_WAIT    10.0
+
 namespace RethinkDB {
 
 class Token;
@@ -53,7 +55,7 @@ public:
     void close();
 
 private:
-    Response wait_for_response(uint64_t);
+    Response wait_for_response(uint64_t, double);
     void close_token(uint64_t);
     void ask_for_more(uint64_t);
 
@@ -108,8 +110,8 @@ public:
         conn->ask_for_more(token);
     }
 
-    Response wait_for_response() const {
-        return conn->wait_for_response(token);
+    Response wait_for_response(double wait = DEFAULT_WAIT) const {
+        return conn->wait_for_response(token, wait);
     }
 
     void close() const {

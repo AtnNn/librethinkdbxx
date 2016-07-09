@@ -101,7 +101,7 @@ R::Query fetch(R::Cursor& cursor, int count, double timeout) {
         if (time(NULL) > deadline) break;
 
         try {
-            array.emplace_back(cursor.next());
+            array.emplace_back(cursor.next(timeout));
             printf("got %s\n", write_datum(array[array.size()-1]).c_str());
         } catch (const R::Error &e) {
             if (e.message != "next: No more data") {

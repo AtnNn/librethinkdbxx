@@ -4,7 +4,7 @@
 namespace RethinkDB {
 
 Cursor::Cursor(Token&& token_) : token(std::move(token_)) {
-    add_response(token.wait_for_response());
+    add_response(token.wait_for_response(DEFAULT_WAIT));
     if (!no_more) {
         // token.ask_for_more();
     }
@@ -33,22 +33,22 @@ Cursor::~Cursor() {
     }
 }
 
-Datum& Cursor::next() const {
-    if (!has_next()) {
+Datum& Cursor::next(double wait) const {
+    if (!has_next(wait)) {
         throw Error("next: No more data");
     }
     return buffer[index++];
 }
 
-Datum& Cursor::peek() const {
-    if (!has_next()) {
+Datum& Cursor::peek(double wait) const {
+    if (!has_next(wait)) {
         throw Error("next: No more data");
     }
     return buffer[index];
 }
 
-void Cursor::each(std::function<void(Datum&&)> f) const {
-    while (has_next()) {
+void Cursor::each(std::function<void(Datum&&)> f, double wait) const {
+    while (has_next(wait)) {
         f(std::move(buffer[index++]));
     }
 }
@@ -77,7 +77,7 @@ void Cursor::clear_and_read_all() const {
         index = 0;
     }
     while (!no_more) {
-        add_response(token.wait_for_response());
+        add_response(token.wait_for_response(DEFAULT_WAIT));
     }
 }
 
@@ -122,7 +122,7 @@ void Cursor::close() const {
     no_more = true;
 }
 
-bool Cursor::has_next() const {
+bool Cursor::has_next(double wait) const {
     if (single) {
         convert_single();
     }
@@ -133,7 +133,7 @@ bool Cursor::has_next() const {
             }
 
             try {
-                add_response(token.wait_for_response());
+                add_response(token.wait_for_response(wait));
             } catch (const TimeoutException&) {
                 return false;
             }

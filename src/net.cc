@@ -23,12 +23,12 @@ class Connection::ReadLock {
 public:
     ReadLock(Connection& conn) : lock(conn.read_lock), conn(&conn) { }
 
-    ssize_t recv_some(char*, size_t);
-    void recv(char*, size_t);
+    ssize_t recv_some(char*, size_t, double wait = DEFAULT_WAIT);
+    void recv(char*, size_t, double wait = DEFAULT_WAIT);
     std::string recv(size_t);
     size_t recv_cstring(char*, size_t);
 
-    Response read_loop(uint64_t, CacheLock&&);
+    Response read_loop(uint64_t, CacheLock&&, double);
 
     std::lock_guard<std::mutex> lock;
     Connection* conn;
@@ -131,15 +131,15 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
     }
 }
 
-ssize_t Connection::ReadLock::recv_some(char* buf, size_t size) {
+ssize_t Connection::ReadLock::recv_some(char* buf, size_t size, double wait) {
     fd_set readfds;
     struct timeval tv;
 
     FD_ZERO(&readfds);
     FD_SET(conn->guarded_sockfd, &readfds);
 
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
+    tv.tv_sec = (int)wait;
+    tv.tv_usec = (int)((wait - (int)wait) * 1000);
     int rv = select(conn->guarded_sockfd + 1, &readfds, NULL, NULL, &tv);
     if (rv == -1) {
         return -1;  // error occurred in select()
@@ -159,9 +159,9 @@ ssize_t Connection::ReadLock::recv_some(char* buf, size_t size) {
     return numbytes;
 }
 
-void Connection::ReadLock::recv(char* buf, size_t size) {
+void Connection::ReadLock::recv(char* buf, size_t size, double wait) {
     while (size) {
-        ssize_t numbytes = recv_some(buf, size);
+        ssize_t numbytes = recv_some(buf, size, wait);
         if (numbytes == -1) {
             throw Error("Lost connection to remote server");
         }
@@ -248,7 +248,7 @@ private:
     size_t remaining;
 };
 
-Response Connection::wait_for_response(uint64_t token_want) {
+Response Connection::wait_for_response(uint64_t token_want, double wait) {
     CacheLock guard(*this);
 
     TokenCache& cache = guarded_cache[token_want];
@@ -276,10 +276,10 @@ Response Connection::wait_for_response(uint64_t token_want) {
     }
 
     ReadLock reader(*this);
-    return reader.read_loop(token_want, std::move(guard));
+    return reader.read_loop(token_want, std::move(guard), wait);
 }
 
-Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard) {
+Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait) {
     if (!guard.inner_lock) {
         guard.lock();
     }
@@ -292,7 +292,7 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard)
     try {
         while (true) {
             char buf[12];
-            recv(buf, 12);
+            recv(buf, 12, wait);
             uint64_t token_got;
             memcpy(&token_got, buf, 8);
             uint32_t length;
