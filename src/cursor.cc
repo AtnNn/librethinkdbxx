@@ -1,4 +1,5 @@
 #include "cursor.h"
+#include "exceptions.h"
 
 namespace RethinkDB {
 
@@ -25,7 +26,7 @@ Cursor::Cursor(Datum&& d) {
     single = true;
     no_more = true;
 }
-    
+
 Cursor::~Cursor() {
     if (!no_more) {
         close();
@@ -130,7 +131,12 @@ bool Cursor::has_next() const {
             if (no_more) {
                 return false;
             }
-            add_response(token.wait_for_response());
+
+            try {
+                add_response(token.wait_for_response());
+            } catch (const TimeoutException&) {
+                return false;
+            }
         } else {
             return true;
         }

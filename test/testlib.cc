@@ -99,9 +99,19 @@ R::Query fetch(R::Cursor& cursor, int count, double timeout) {
     for (int i = 0; count == -1 || i < count; ++i) {
         printf("fetching next (%d)\n", i);
         if (time(NULL) > deadline) break;
-        array.emplace_back(cursor.next());
-        printf("got %s\n", write_datum(array[array.size()-1]).c_str());
+
+        try {
+            array.emplace_back(cursor.next());
+            printf("got %s\n", write_datum(array[array.size()-1]).c_str());
+        } catch (const R::Error &e) {
+            if (e.message != "next: No more data") {
+                throw e;    // rethrow
+            }
+
+            break;
+        }
     }
+
     return expr(std::move(array));
 }
 

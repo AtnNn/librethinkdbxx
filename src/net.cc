@@ -1,5 +1,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
+
 #include <netdb.h>
 #include <unistd.h>
 
@@ -11,6 +13,7 @@
 #include "net.h"
 #include "stream.h"
 #include "json.h"
+#include "exceptions.h"
 
 namespace RethinkDB {
 
@@ -20,7 +23,7 @@ class Connection::ReadLock {
 public:
     ReadLock(Connection& conn) : lock(conn.read_lock), conn(&conn) { }
 
-    size_t recv_some(char*, size_t);
+    ssize_t recv_some(char*, size_t);
     void recv(char*, size_t);
     std::string recv(size_t);
     size_t recv_cstring(char*, size_t);
@@ -70,7 +73,7 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    
+
     char port_str[16];
     snprintf(port_str, 16, "%d", port);
     struct addrinfo *servinfo;
@@ -113,7 +116,7 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
         memcpy(buf + 8 + size, &json_magic, 4);
         writer.send(buf, sizeof buf);
     }
-    
+
     ReadLock reader(*this);
 
     const size_t max_response_length = 1024;
@@ -128,7 +131,28 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
     }
 }
 
-size_t Connection::ReadLock::recv_some(char* buf, size_t size) {
+ssize_t Connection::ReadLock::recv_some(char* buf, size_t size) {
+    fd_set readfds;
+    struct timeval tv;
+
+    FD_ZERO(&readfds);
+    FD_SET(conn->guarded_sockfd, &readfds);
+
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    int rv = select(conn->guarded_sockfd + 1, &readfds, NULL, NULL, &tv);
+    if (rv == -1) {
+        return -1;  // error occurred in select()
+    } else if (rv == 0) {
+        throw TimeoutException();   // recv timed out after 1s
+    }
+
+    // one or both of the descriptors have data
+    if (!FD_ISSET(conn->guarded_sockfd, &readfds)) {
+        return 0;   // no data received on socket
+    }
+
+    // otherwise we're good to go
     ssize_t numbytes = ::recv(conn->guarded_sockfd, buf, size, 0);
     if (numbytes == -1) throw Error::from_errno("recv");
     if (debug_net > 1) fprintf(stderr, "<< %s\n", write_datum(std::string(buf, numbytes)).c_str());
@@ -137,8 +161,11 @@ size_t Connection::ReadLock::recv_some(char* buf, size_t size) {
 
 void Connection::ReadLock::recv(char* buf, size_t size) {
     while (size) {
-        size_t numbytes = recv_some(buf, size);
-        if (numbytes == 0) throw Error("Lost connection to remote server");
+        ssize_t numbytes = recv_some(buf, size);
+        if (numbytes == -1) {
+            throw Error("Lost connection to remote server");
+        }
+
         buf += numbytes;
         size -= numbytes;
     }
@@ -233,6 +260,7 @@ Response Connection::wait_for_response(uint64_t token_want) {
             if (cache.closed && cache.responses.empty()) {
                 guarded_cache.erase(token_want);
             }
+
             return response;
         }
 
@@ -244,7 +272,7 @@ Response Connection::wait_for_response(uint64_t token_want) {
             cache.cond.wait(guard.inner_lock);
         } else {
             break;
-        } 
+        }
     }
 
     ReadLock reader(*this);
@@ -261,49 +289,56 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard)
     conn->guarded_loop_active = true;
     guard.unlock();
 
-    while (true) {
-        char buf[12];
-        recv(buf, 12);
-        uint64_t token_got;
-        memcpy(&token_got, buf, 8);
-        uint32_t length;
-        memcpy(&length, buf + 8, 4);
-        ResponseBuffer stream(this, length);
-        Datum datum = read_datum(stream);
+    try {
+        while (true) {
+            char buf[12];
+            recv(buf, 12);
+            uint64_t token_got;
+            memcpy(&token_got, buf, 8);
+            uint32_t length;
+            memcpy(&length, buf + 8, 4);
+            ResponseBuffer stream(this, length);
+            Datum datum = read_datum(stream);
+            if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
 
-        if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
+            Response response(std::move(datum));
 
-        Response response(std::move(datum));
-
-        if (token_got == token_want) {
-            guard.lock();
-            if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
-                auto it = conn->guarded_cache.find(token_got);
-                if (it != conn->guarded_cache.end()) {
-                    it->second.closed = true;
-                    it->second.cond.notify_all();
-                }
-                conn->guarded_cache.erase(it);
-            }
-            conn->guarded_loop_active = false;
-            for (auto& it : conn->guarded_cache) {
-                it.second.cond.notify_all();
-            }
-            return response;
-        } else {
-            guard.lock();
-            auto it = conn->guarded_cache.find(token_got);
-            if (it == conn->guarded_cache.end()) {
-                // drop the response
-            } else if (!it->second.closed) {
-                it->second.responses.emplace(std::move(response));
+            if (token_got == token_want) {
+                guard.lock();
                 if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
-                    it->second.closed = true;
+                    auto it = conn->guarded_cache.find(token_got);
+                    if (it != conn->guarded_cache.end()) {
+                        it->second.closed = true;
+                        it->second.cond.notify_all();
+                    }
+                    conn->guarded_cache.erase(it);
                 }
+                conn->guarded_loop_active = false;
+                for (auto& it : conn->guarded_cache) {
+                    it.second.cond.notify_all();
+                }
+                return response;
+            } else {
+                guard.lock();
+                auto it = conn->guarded_cache.find(token_got);
+                if (it == conn->guarded_cache.end()) {
+                    // drop the response
+                } else if (!it->second.closed) {
+                    it->second.responses.emplace(std::move(response));
+                    if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
+                        it->second.closed = true;
+                    }
+                }
+                it->second.cond.notify_all();
+                guard.unlock();
             }
-            it->second.cond.notify_all();
-            guard.unlock();
         }
+    } catch (const TimeoutException &e) {
+        guard.lock();
+        conn->guarded_loop_active = false;
+        guard.unlock();
+
+        throw e;
     }
 }
 
