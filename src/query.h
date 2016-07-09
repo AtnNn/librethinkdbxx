@@ -327,7 +327,7 @@ public:
     // $doc(do)
     template <class ...T>
     Query do_(T&& ...a) && {
-        auto list = { std::move(*this), expr(std::forward<T>(a))... };
+        auto list = { std::move(*this), Query::func_wrap(expr(std::forward<T>(a)))... };
         std::vector<Query> args;
         args.reserve(list.size() + 1);
         args.emplace_back(func_wrap(std::move(*(list.end()-1))));
