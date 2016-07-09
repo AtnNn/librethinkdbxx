@@ -35,6 +35,12 @@ void enter_section(const char* name) {
     }
 }
 
+void section_cleanup() {
+    R::db("test").table_list().for_each([=](R::Var table) {
+        return R::db("test").table_drop(*table);
+    }).run(*conn);
+}
+
 void exit_section() {
     section.pop_back();
 }
@@ -101,7 +107,7 @@ R::Query fetch(R::Cursor& cursor, int count, double timeout) {
         if (time(NULL) > deadline) break;
 
         try {
-            array.emplace_back(cursor.next(timeout));
+            array.emplace_back(cursor.next());
             printf("got %s\n", write_datum(array[array.size()-1]).c_str());
         } catch (const R::Error &e) {
             if (e.message != "next: No more data") {
@@ -319,4 +325,3 @@ R::Array append(R::Array lhs, R::Array rhs) {
 
     return lhs;
 }
-

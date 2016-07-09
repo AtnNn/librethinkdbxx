@@ -449,6 +449,7 @@ for py, ot, tp, runopts in python_tests(data["tests"]):
         failed = True
         print(argv[1] + ": could not translate: " + str(e), file=stderr)
 
+p("section_cleanup();")
 p("exit_section();")
 
 exit("}")

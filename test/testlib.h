@@ -18,6 +18,7 @@ extern int verbosity;
 const char* indent();
 
 void enter_section(const char* name);
+void section_cleanup();
 void exit_section();
 
 #define TEST_DO(code)                                                   \
@@ -86,6 +87,7 @@ struct temp_table {
         R::table_create(name_).run(*conn);
         name = name_;
     }
+
     ~temp_table() {
         try {
             R::table_drop(name).run(*conn);
