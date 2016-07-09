@@ -382,17 +382,19 @@ Error Response::as_error() {
     case RT::SUCCESS_ATOM: err = "unexpected response: SUCCESS_ATOM"; break;
     case RT::WAIT_COMPLETE: err = "unexpected response: WAIT_COMPLETE"; break;
     case RT::SERVER_INFO: err = "unexpected response: SERVER_INFO"; break;
-    case RT::CLIENT_ERROR: err = "ReqlClientError"; break;
-    case RT::COMPILE_ERROR: err = "ReqlCompileError"; break;
+    case RT::CLIENT_ERROR: err = "ReqlDriverError"; break;
+    case RT::COMPILE_ERROR: err = "ReqlServerCompileError"; break;
     case RT::RUNTIME_ERROR:
         switch (error_type) {
+        case ET::INTERNAL: err = "ReqlInternalError"; break;
         case ET::RESOURCE_LIMIT: err = "ReqlResourceLimitError"; break;
         case ET::QUERY_LOGIC: err = "ReqlQueryLogicError"; break;
         case ET::NON_EXISTENCE: err = "ReqlNonExistenceError"; break;
         case ET::OP_FAILED: err = "ReqlOpFailedError"; break;
         case ET::OP_INDETERMINATE: err = "ReqlOpIndeterminateError"; break;
         case ET::USER: err = "ReqlUserError"; break;
-        default: err = "runtime error"; break;
+        case ET::PERMISSION_ERROR: err = "ReqlPermissionError"; break;
+        default: err = "ReqlRuntimeError"; break;
         }
     }
     throw Error("%s: %s", err.c_str(), repr.c_str());
