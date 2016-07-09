@@ -86,7 +86,14 @@ struct temp_table {
         R::table_create(name_).run(*conn);
         name = name_;
     }
-    ~temp_table() { R::table_drop(name).run(*conn); }
+    ~temp_table() {
+        try {
+            R::table_drop(name).run(*conn);
+        } catch (const R::Error &e) {
+            printf("error dropping temp_table: %s\n", e.message.c_str());
+        }
+    }
+
     R::Query table() { return R::table(name); }
     std::string name;
 };
