@@ -397,6 +397,9 @@ def maybe_discard(py, ot):
         raise Discard("argument checks not supported")
     if match(".*AttributeError.*", ot):
         raise Discard("attribute checks not supported, will cause a compiler error")
+    if match(".*{.*} for i in range.*", ot):
+        raise Discard("list comprehension for expected objects not supported")
+
 
 data = parseYAML(open(argv[1]).read())
 

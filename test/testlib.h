@@ -66,7 +66,7 @@ R::Object regex(const char* pattern);
 bool match(const char* pattern, const char* string);
 
 R::Object partial(R::Object&& object);
-R::Object partial(R::Array&& object);
+R::Object partial(R::Array&& array);
 R::Datum uuid();
 R::Object arrlen(int n, R::Datum&& datum);
 R::Object arrlen(int n);
