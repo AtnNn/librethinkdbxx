@@ -395,6 +395,8 @@ def maybe_discard(py, ot):
         raise Discard("string object keys tests not supported")
     if match(".*Got .* argument", ot):
         raise Discard("argument checks not supported")
+    if match(".*AttributeError.*", ot):
+        raise Discard("attribute checks not supported, will cause a compiler error")
 
 data = parseYAML(open(argv[1]).read())
 
