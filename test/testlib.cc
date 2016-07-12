@@ -22,6 +22,18 @@ std::string to_string(const R::Datum& datum) {
     return write_datum(datum);
 }
 
+std::string to_string(const R::Object& object) {
+    auto it = object.find("special");
+    if (it != object.end() && it->second == "bag") {
+        auto bag = object.find("bag");
+        if (bag != object.end()) {
+            return to_string((R::Datum)bag->second);
+        }
+    }
+
+    return to_string((R::Datum)object);
+}
+
 std::string to_string(const R::Error& error) {
     return "Error(\"" + error.message + "\")";
 }
@@ -99,16 +111,16 @@ std::string repeat(std::string&& s, int n) {
 }
 
 R::Query fetch(R::Cursor& cursor, int count, double timeout) {
-    printf("fetch(..., %d, %lf)\n", count, timeout);
+    // printf("fetch(..., %d, %lf)\n", count, timeout);
     R::Array array;
     int deadline = time(NULL) + int(timeout);
     for (int i = 0; count == -1 || i < count; ++i) {
-        printf("fetching next (%d)\n", i);
+        // printf("fetching next (%d)\n", i);
         if (time(NULL) > deadline) break;
 
         try {
             array.emplace_back(cursor.next());
-            printf("got %s\n", write_datum(array[array.size()-1]).c_str());
+            // printf("got %s\n", write_datum(array[array.size()-1]).c_str());
         } catch (const R::Error &e) {
             if (e.message != "next: No more data") {
                 throw e;    // rethrow
@@ -178,11 +190,17 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
         if (!type) break;
         if (*type == "bag") {
             const R::Datum* bag_datum = expected.get_field("bag");
-            if (!bag_datum || !bag_datum->get_array()) break;
+            if (!bag_datum || !bag_datum->get_array()) {
+                break;
+            }
             R::Array bag = *bag_datum->get_array();
             const R::Array* array = got.get_array();
-            if (!array) return false;
-            if (bag.size() != array->size()) return false;
+            if (!array) {
+                return false;
+            }
+            if (bag.size() != array->size()) {
+                return false;
+            }
             for (const auto& it : *array) {
                 auto ref = std::find(bag.begin(), bag.end(), it);
                 if (ref == bag.end()) return false;
