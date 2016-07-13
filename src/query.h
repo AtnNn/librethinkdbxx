@@ -38,9 +38,9 @@ public:
     Query copy() const;
 
     Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
-    Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
-    Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, Var, Var>(f); }
-    Query(std::function<Query(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var, Var)>, Var, Var, Var>(f); }
+    Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, 0>(f); }
+    Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, 0, 1>(f); }
+    Query(std::function<Query(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var, Var)>, 0, 1, 2>(f); }
     Query(Protocol::Term::TermType type, std::vector<Query>&& args) : datum(Array()) {
         Array dargs;
         for (auto& it : args) {
@@ -353,10 +353,10 @@ public:
 private:
     friend class Var;
 
-    template <class _>
+    template <int _>
     Var mkvar(std::vector<int>& vars);
 
-    template <class F, class ... Vars>
+    template <class F, int ...N>
     void set_function(F);
 
     Datum alpha_rename(Query&&);
@@ -391,18 +391,20 @@ private:
     int* id;
 };
 
-template <class _>
+template <int N>
 Var Query::mkvar(std::vector<int>& vars) {
     int id = gen_var_id();
     vars.push_back(id);
     return Var(&*vars.rbegin());
 }
 
-template <class F, class ... Vars>
+template <class F, int ...N>
 void Query::set_function(F f) {
     std::vector<int> vars;
-    vars.reserve(sizeof...(Vars));
-    Query body = f(mkvar<Vars>(vars)...);
+    vars.reserve(sizeof...(N));
+    std::vector<Var> args = { mkvar<N>(vars)... };
+    Query body = f(args[N] ...);
+
     int* low = &*vars.begin();
     int* high = &*(vars.end() - 1);
     for (auto it = body.free_vars.begin(); it != body.free_vars.end(); ) {
