@@ -24,8 +24,9 @@ std::string to_string(const R::Datum& datum) {
 
 std::string to_string(const R::Object& object) {
     auto it = object.find("special");
-    if (it != object.end() && it->second == "bag") {
-        auto bag = object.find("bag");
+    if (it != object.end()) {
+        std::string type = *(it->second).get_string();
+        auto bag = object.find(type);
         if (bag != object.end()) {
             return to_string((R::Datum)bag->second);
         }
