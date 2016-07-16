@@ -32,6 +32,7 @@ struct {
 } datum_to_query;
 
 Query::Query(Datum&& datum_) : datum(datum_.apply<Datum>(datum_to_query)) { }
+Query::Query(const Datum& datum_) : datum(datum_.apply<Datum>(datum_to_query)) { }
 
 Query::Query(Query&& orig, OptArgs&& new_optargs) : datum(Nil()) {
     Datum* cur = orig.datum.get_nth(2);
@@ -143,7 +144,6 @@ Datum Query::alpha_rename(Query&& query) {
 int gen_var_id() {
     return ::random() % (1<<30);
 }
-
 
 C0_IMPL(db_list, DB_LIST)
 C0_IMPL(table_list, TABLE_LIST)
@@ -286,6 +286,10 @@ Query sunday(TT::SUNDAY, {});
 
 Query Query::copy() const {
     return *this;
+}
+
+Datum Query::get_datum() const {
+    return datum;
 }
 
 }

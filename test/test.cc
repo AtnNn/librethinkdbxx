@@ -12,6 +12,7 @@ void test_json(const char* string, const char* ret = "") {
 
 void test_json_parse_print() {
     enter_section("json");
+    test_json("-0.0", "-0.0");
     test_json("null");
     test_json("1.2");
     test_json("1.2e20", "1.2e+20");
@@ -81,9 +82,9 @@ int main() {
         return 1;
     }
     try {
-        test_binary();
-        test_json_parse_print();
-        test_reql();
+        //test_binary();
+        //test_json_parse_print();
+        //test_reql();
         //test_cursor();
         run_upstream_tests();
     } catch (const R::Error& error) {

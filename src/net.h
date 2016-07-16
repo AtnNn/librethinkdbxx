@@ -10,6 +10,8 @@
 #include "datum.h"
 #include "error.h"
 
+#define DEFAULT_WAIT    10.0
+
 namespace RethinkDB {
 
 class Token;
@@ -18,15 +20,20 @@ class ResponseBuffer;
 
 // Used internally to convert a raw response type into an enum
 Protocol::Response::ResponseType response_type(double t);
+Protocol::Response::ErrorType runtime_error_type(double t);
 
 // Contains a response from the server. Use the Cursor class to interact with these responses
 class Response {
 public:
     Response(Datum&& datum) :
         type(response_type(std::move(datum).extract_field("t").extract_number())),
+        error_type(datum.get_field("e") ?
+                   runtime_error_type(std::move(datum).extract_field("e").extract_number()) :
+                   Protocol::Response::ErrorType(0)),
         result(std::move(datum).extract_field("r").extract_array()) { }
     Error as_error();
     Protocol::Response::ResponseType type;
+    Protocol::Response::ErrorType error_type;
     Array result;
 };
 
@@ -48,7 +55,7 @@ public:
     void close();
 
 private:
-    Response wait_for_response(uint64_t);
+    Response wait_for_response(uint64_t, double);
     void close_token(uint64_t);
     void ask_for_more(uint64_t);
 
@@ -86,8 +93,15 @@ std::unique_ptr<Connection> connect(std::string host = "localhost", int port = 2
 class Token {
 public:
     Token(Connection::WriteLock&);
+    Token() : conn(nullptr) { }
 
     Token(const Token&) = delete;
+    Token& operator=(Token&& other){
+        token = other.token;
+        conn = other.conn;
+        other.conn = NULL;
+        return *this;
+    }
     Token(Token&& other) : conn(other.conn), token(other.token) {
         other.conn = NULL;
     }
@@ -96,8 +110,8 @@ public:
         conn->ask_for_more(token);
     }
 
-    Response wait_for_response() const {
-        return conn->wait_for_response(token);
+    Response wait_for_response(double wait = DEFAULT_WAIT) const {
+        return conn->wait_for_response(token, wait);
     }
 
     void close() const {

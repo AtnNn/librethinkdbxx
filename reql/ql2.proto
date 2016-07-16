@@ -48,6 +48,7 @@ message VersionDummy { // We need to wrap it like this for some
         V0_2      = 0x723081e1; // Authorization key during handshake
         V0_3      = 0x5f75e83e; // Authorization key and protocol during handshake
         V0_4      = 0x400c2d20; // Queries execute in parallel
+        V1_0      = 0x34c2bdc3; // Users and permissions
     }
 
     // The protocol to use after the handshake, specified in V0_3
@@ -64,14 +65,15 @@ message VersionDummy { // We need to wrap it like this for some
 // * A [STOP] query with the same token as a [START] query that you want to stop.
 // * A [NOREPLY_WAIT] query with a unique per-connection token. The server answers
 //   with a [WAIT_COMPLETE] [Response].
+// * A [SERVER_INFO] query. The server answers with a [SERVER_INFO] [Response].
 message Query {
     enum QueryType {
-        START    = 1; // Start a new query.
-        CONTINUE = 2; // Continue a query that returned [SUCCESS_PARTIAL]
-                      // (see [Response]).
-        STOP     = 3; // Stop a query partway through executing.
-        NOREPLY_WAIT = 4;
-                      // Wait for noreply operations to finish.
+        START        = 1; // Start a new query.
+        CONTINUE     = 2; // Continue a query that returned [SUCCESS_PARTIAL]
+                          // (see [Response]).
+        STOP         = 3; // Stop a query partway through executing.
+        NOREPLY_WAIT = 4; // Wait for noreply operations to finish.
+        SERVER_INFO  = 5; // Get server information.
     }
     optional QueryType type = 1;
     // A [Term] is how we represent the operations we want a query to perform.
@@ -97,8 +99,8 @@ message Query {
 // A backtrace frame (see `backtrace` in Response below)
 message Frame {
     enum FrameType {
-        POS = 1; // Error occured in a positional argument.
-        OPT = 2; // Error occured in an optional argument.
+        POS = 1; // Error occurred in a positional argument.
+        OPT = 2; // Error occurred in an optional argument.
     }
     optional FrameType type = 1;
     optional int64 pos = 2; // The index of the positional argument.
@@ -120,6 +122,9 @@ message Response {
                                // more of the sequence.  Keep sending [CONTINUE]
                                // queries until you get back [SUCCESS_SEQUENCE].
         WAIT_COMPLETE     = 4; // A [NOREPLY_WAIT] query completed.
+        SERVER_INFO       = 5; // The data for a [SERVER_INFO] request.  This is
+                               // the same as `SUCCESS_ATOM` except that there will
+                               // never be profiling data.
 
         // These response types indicate failure.
         CLIENT_ERROR  = 16; // Means the client is buggy.  An example is if the
@@ -134,6 +139,20 @@ message Response {
                             // than numbers.
     }
     optional ResponseType type = 1;
+
+    // If `ResponseType` is `RUNTIME_ERROR`, this may be filled in with more
+    // information about the error.
+    enum ErrorType {
+        INTERNAL = 1000000;
+        RESOURCE_LIMIT = 2000000;
+        QUERY_LOGIC = 3000000;
+        NON_EXISTENCE = 3100000;
+        OP_FAILED = 4100000;
+        OP_INDETERMINATE = 4200000;
+        USER = 5000000;
+        PERMISSION_ERROR = 6000000;
+    }
+    optional ErrorType error_type = 7;
 
     // ResponseNotes are used to provide information about the query
     // response that may be useful for people writing drivers or ORMs.
@@ -161,14 +180,15 @@ message Response {
 
     optional int64 token = 2; // Indicates what [Query] this response corresponds to.
 
-    // [response] contains 1 RQL datum if [type] is [SUCCESS_ATOM], or many RQL
-    // data if [type] is [SUCCESS_SEQUENCE] or [SUCCESS_PARTIAL].  It contains 1
+    // [response] contains 1 RQL datum if [type] is [SUCCESS_ATOM] or
+    // [SERVER_INFO].  [response] contains many RQL data if [type] is
+    // [SUCCESS_SEQUENCE] or [SUCCESS_PARTIAL].  [response] contains 1
     // error message (of type [R_STR]) in all other cases.
     repeated Datum response = 3;
 
     // If [type] is [CLIENT_ERROR], [TYPE_ERROR], or [RUNTIME_ERROR], then a
     // backtrace will be provided.  The backtrace says where in the query the
-    // error occured.  Ideally this information will be presented to the user as
+    // error occurred.  Ideally this information will be presented to the user as
     // a pretty-printed version of their query with the erroneous section
     // underlined.  A backtrace is a series of 0 or more [Frame]s, each of which
     // specifies either the index of a positional argument or the name of an
@@ -214,8 +234,6 @@ message Datum {
         optional Datum val = 2;
     }
     repeated AssocPair r_object = 6;
-
-    extensions 10000 to 20000;
 }
 
 // A [Term] is either a piece of data (see **Datum** above), or an operator and
@@ -237,7 +255,7 @@ message Datum {
 // Some arguments must be provided as literal values (and not the results of sub
 // terms).  These are marked with a `!`.
 // Optional arguments are specified within curly braces as argname `:` value
-// type (e.x `{use_outdated:BOOL}`)
+// type (e.x `{noreply:BOOL}`)
 // Many RQL operations are polymorphic. For these, alterantive type signatures
 // are separated by `|`.
 //
@@ -313,8 +331,8 @@ message Term {
         // Returns a reference to a database.
         DB    = 14; // STRING -> Database
         // Returns a reference to a table.
-        TABLE = 15; // Database, STRING, {use_outdated:BOOL, identifier_format:STRING} -> Table
-                    // STRING, {use_outdated:BOOL, identifier_format:STRING} -> Table
+        TABLE = 15; // Database, STRING, {read_mode:STRING, identifier_format:STRING} -> Table
+                    // STRING, {read_mode:STRING, identifier_format:STRING} -> Table
         // Gets a single element from a table by its primary or a secondary key.
         GET   = 16; // Table, STRING -> SingleSelection | Table, NUMBER -> SingleSelection |
                     // Table, STRING -> NULL            | Table, NUMBER -> NULL |
@@ -334,6 +352,10 @@ message Term {
         MUL = 26; // NUMBER... -> NUMBER
         DIV = 27; // NUMBER... -> NUMBER
         MOD = 28; // NUMBER, NUMBER -> NUMBER
+
+        FLOOR = 183;    // NUMBER -> NUMBER
+        CEIL = 184;     // NUMBER -> NUMBER
+        ROUND = 185;    // NUMBER -> NUMBER
 
         // DATUM Array Ops
         // Append a single element to the end of an array (like `snoc`).
@@ -357,7 +379,7 @@ message Term {
         SKIP  = 70; // Sequence, NUMBER -> Sequence
         LIMIT = 71; // Sequence, NUMBER -> Sequence
         OFFSETS_OF = 87; // Sequence, DATUM -> Sequence | Sequence, Function(1) -> Sequence
-        CONTAINS = 93; // Sequence, DATUM -> BOOL | Sequence, Function(1) -> BOOL
+        CONTAINS = 93; // Sequence, (DATUM | Function(1))... -> BOOL
 
         // Stream/Object Ops
         // Get a particular field from an object, or map that over a
@@ -366,6 +388,8 @@ message Term {
                          // | Sequence, STRING -> Sequence
         // Return an array containing the keys of the object.
         KEYS = 94; // OBJECT -> ARRAY
+        // Return an array containing the values of the object.
+        VALUES = 186; // OBJECT -> ARRAY
         // Creates an object
         OBJECT = 143; // STRING, DATUM, ... -> OBJECT
         // Check whether an object contains all the specified fields,
@@ -396,6 +420,8 @@ message Term {
                         // The arity of the function should be
                         // Sequence..., Function(sizeof...(Sequence)) -> Sequence
 
+        FOLD      = 187; // Sequence, Datum, Function(2), {Function(3), Function(1)
+
         // Filter a sequence with either a function or a shortcut
         // object (see API docs for details).  The body of FILTER is
         // wrapped in an implicit `.default(false)`, and you can
@@ -408,7 +434,7 @@ message Term {
         // Map a function over a sequence and then concatenate the results together.
         CONCAT_MAP = 40; // Sequence, Function(1) -> Sequence
         // Order a sequence based on one or more attributes.
-        ORDER_BY   = 41; // Sequence, (!STRING | Ordering)... -> Sequence
+        ORDER_BY   = 41; // Sequence, (!STRING | Ordering)..., {index: (!STRING | Ordering)} -> Sequence
         // Get all distinct elements of a sequence (like `uniq`).
         DISTINCT  = 42; // Sequence -> Sequence
         // Count the number of elements in a sequence, or only the elements that match
@@ -507,11 +533,18 @@ message Term {
         WAIT    = 177; // Table -> OBJECT
                        // Database -> OBJECT
         // Generates a new config for the given table, or all tables in the given database
-        // The `shards` and `replicas` arguments are required
-        RECONFIGURE   = 176; // Database, {shards:NUMBER, replicas:NUMBER[, primary_replica_tag:STRING, dry_run:BOOLEAN]} -> OBJECT
-                             // Database, {shards:NUMBER, replicas:OBJECT[, primary_replica_tag:STRING, dry_run:BOOLEAN]} -> OBJECT
-                             // Table, {shards:NUMBER, replicas:NUMBER[, primary_replica_tag:STRING, dry_run:BOOLEAN]} -> OBJECT
-                             // Table, {shards:NUMBER, replicas:OBJECT[, primary_replica_tag:STRING, dry_run:BOOLEAN]} -> OBJECT
+        // The `shards` and `replicas` arguments are required. If `emergency_repair` is
+        // specified, it will enter a completely different mode of repairing a table
+        // which has lost half or more of its replicas.
+        RECONFIGURE   = 176; // Database|Table, {shards:NUMBER, replicas:NUMBER [,
+                             //                  dry_run:BOOLEAN]
+                             //                 } -> OBJECT
+                             // Database|Table, {shards:NUMBER, replicas:OBJECT [,
+                             //                  primary_replica_tag:STRING,
+                             //                  nonvoting_replica_tags:ARRAY,
+                             //                  dry_run:BOOLEAN]
+                             //                 } -> OBJECT
+                             // Table, {emergency_repair:STRING, dry_run:BOOLEAN} -> OBJECT
         // Balances the table's shards but leaves everything else the same. Can also be
         // applied to an entire database at once.
         REBALANCE     = 179; // Table -> OBJECT
@@ -520,6 +553,11 @@ message Term {
         // Ensures that previously issued soft-durability writes are complete and
         // written to disk.
         SYNC          = 138; // Table -> OBJECT
+
+        // Set global, database, or table-specific permissions
+        GRANT         = 188; //          -> OBJECT
+                             // Database -> OBJECT
+                             // Table    -> OBJECT
 
         // * Secondary indexes OPs
         // Creates a new secondary index with a particular name and definition.
@@ -530,7 +568,7 @@ message Term {
         INDEX_LIST   = 77; // Table -> ARRAY
         // Gets information about whether or not a set of indexes are ready to
         // be accessed. Returns a list of objects that look like this:
-        // {index:STRING, ready:BOOL[, blocks_processed:NUMBER, blocks_total:NUMBER]}
+        // {index:STRING, ready:BOOL[, progress:NUMBER]}
         INDEX_STATUS = 139; // Table, STRING... -> ARRAY
         // Blocks until a set of indexes are ready to be accessed. Returns the
         // same values INDEX_STATUS.
@@ -695,8 +733,10 @@ message Term {
         NOVEMBER = 124;  // -> 11
         DECEMBER = 125;  // -> 12
 
-        // Indicates to MERGE to replace the other object rather than merge it.
-        LITERAL = 137; // JSON -> Merging
+        // Indicates to MERGE to replace, or remove in case of an empty literal, the
+        // other object rather than merge it.
+        LITERAL = 137; // -> Merging
+                       // JSON -> Merging
 
         // SEQUENCE, STRING -> GROUPED_SEQUENCE | SEQUENCE, FUNCTION -> GROUPED_SEQUENCE
         GROUP = 144;
@@ -753,15 +793,13 @@ message Term {
     repeated AssocPair optargs = 4; // Holds the optional arguments of the query.
     // (Note that the order of the optional arguments doesn't matter; think of a
     // Hash.)
-
-    extensions 10000 to 20000;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                  EXAMPLE                                   //
 ////////////////////////////////////////////////////////////////////////////////
 //   ```ruby
-//   r.table('tbl', {:use_outdated => true}).insert([{:id => 0}, {:id => 1}])
+//   r.table('tbl', {:read_mode => 'outdated'}).insert([{:id => 0}, {:id => 1}])
 //   ```
 // Would turn into:
 //   Term {
@@ -772,10 +810,10 @@ message Term {
 //                         type = DATUM;
 //                         datum = Datum { type = R_STR; r_str = "tbl"; };
 //                       }];
-//               optargs = [["use_outdated",
+//               optargs = [["read_mode",
 //                           Term {
 //                             type = DATUM;
-//                             datum = Datum { type = R_BOOL; r_bool = true; };
+//                             datum = Datum { type = R_STR; r_bool = "outdated"; };
 //                           }]];
 //             },
 //             Term {

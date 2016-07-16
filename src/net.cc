@@ -1,15 +1,19 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
+
 #include <netdb.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <cstring>
+#include <cinttypes>
 
 #include "error.h"
 #include "net.h"
 #include "stream.h"
 #include "json.h"
+#include "exceptions.h"
 
 namespace RethinkDB {
 
@@ -19,12 +23,12 @@ class Connection::ReadLock {
 public:
     ReadLock(Connection& conn) : lock(conn.read_lock), conn(&conn) { }
 
-    size_t recv_some(char*, size_t);
-    void recv(char*, size_t);
+    ssize_t recv_some(char*, size_t, double wait = DEFAULT_WAIT);
+    void recv(char*, size_t, double wait = DEFAULT_WAIT);
     std::string recv(size_t);
     size_t recv_cstring(char*, size_t);
 
-    Response read_loop(uint64_t, CacheLock&&);
+    Response read_loop(uint64_t, CacheLock&&, double);
 
     std::lock_guard<std::mutex> lock;
     Connection* conn;
@@ -69,7 +73,7 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    
+
     char port_str[16];
     snprintf(port_str, 16, "%d", port);
     struct addrinfo *servinfo;
@@ -112,7 +116,7 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
         memcpy(buf + 8 + size, &json_magic, 4);
         writer.send(buf, sizeof buf);
     }
-    
+
     ReadLock reader(*this);
 
     const size_t max_response_length = 1024;
@@ -127,17 +131,41 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
     }
 }
 
-size_t Connection::ReadLock::recv_some(char* buf, size_t size) {
+ssize_t Connection::ReadLock::recv_some(char* buf, size_t size, double wait) {
+    fd_set readfds;
+    struct timeval tv;
+
+    FD_ZERO(&readfds);
+    FD_SET(conn->guarded_sockfd, &readfds);
+
+    tv.tv_sec = (int)wait;
+    tv.tv_usec = (int)((wait - (int)wait) * 1000);
+    int rv = select(conn->guarded_sockfd + 1, &readfds, NULL, NULL, &tv);
+    if (rv == -1) {
+        return -1;  // error occurred in select()
+    } else if (rv == 0) {
+        throw TimeoutException();   // recv timed out after 1s
+    }
+
+    // one or both of the descriptors have data
+    if (!FD_ISSET(conn->guarded_sockfd, &readfds)) {
+        return 0;   // no data received on socket
+    }
+
+    // otherwise we're good to go
     ssize_t numbytes = ::recv(conn->guarded_sockfd, buf, size, 0);
     if (numbytes == -1) throw Error::from_errno("recv");
     if (debug_net > 1) fprintf(stderr, "<< %s\n", write_datum(std::string(buf, numbytes)).c_str());
     return numbytes;
 }
 
-void Connection::ReadLock::recv(char* buf, size_t size) {
+void Connection::ReadLock::recv(char* buf, size_t size, double wait) {
     while (size) {
-        size_t numbytes = recv_some(buf, size);
-        if (numbytes == 0) throw Error("Lost connection to remote server");
+        ssize_t numbytes = recv_some(buf, size, wait);
+        if (numbytes == -1) {
+            throw Error("Lost connection to remote server");
+        }
+
         buf += numbytes;
         size -= numbytes;
     }
@@ -220,7 +248,7 @@ private:
     size_t remaining;
 };
 
-Response Connection::wait_for_response(uint64_t token_want) {
+Response Connection::wait_for_response(uint64_t token_want, double wait) {
     CacheLock guard(*this);
 
     TokenCache& cache = guarded_cache[token_want];
@@ -232,6 +260,7 @@ Response Connection::wait_for_response(uint64_t token_want) {
             if (cache.closed && cache.responses.empty()) {
                 guarded_cache.erase(token_want);
             }
+
             return response;
         }
 
@@ -243,14 +272,14 @@ Response Connection::wait_for_response(uint64_t token_want) {
             cache.cond.wait(guard.inner_lock);
         } else {
             break;
-        } 
+        }
     }
 
     ReadLock reader(*this);
-    return reader.read_loop(token_want, std::move(guard));
+    return reader.read_loop(token_want, std::move(guard), wait);
 }
 
-Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard) {
+Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait) {
     if (!guard.inner_lock) {
         guard.lock();
     }
@@ -260,49 +289,56 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard)
     conn->guarded_loop_active = true;
     guard.unlock();
 
-    while (true) {
-        char buf[12];
-        recv(buf, 12);
-        uint64_t token_got;
-        memcpy(&token_got, buf, 8);
-        uint32_t length;
-        memcpy(&length, buf + 8, 4);
-        ResponseBuffer stream(this, length);
-        Datum datum = read_datum(stream);
+    try {
+        while (true) {
+            char buf[12];
+            recv(buf, 12, wait);
+            uint64_t token_got;
+            memcpy(&token_got, buf, 8);
+            uint32_t length;
+            memcpy(&length, buf + 8, 4);
+            ResponseBuffer stream(this, length);
+            Datum datum = read_datum(stream);
+            if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
 
-        if (debug_net > 0) fprintf(stderr, "[%zu] << %s\n", token_got, write_datum(datum).c_str());
+            Response response(std::move(datum));
 
-        Response response(std::move(datum));
-
-        if (token_got == token_want) {
-            guard.lock();
-            if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
-                auto it = conn->guarded_cache.find(token_got);
-                if (it != conn->guarded_cache.end()) {
-                    it->second.closed = true;
-                    it->second.cond.notify_all();
-                }
-                conn->guarded_cache.erase(it);
-            }
-            conn->guarded_loop_active = false;
-            for (auto& it : conn->guarded_cache) {
-                it.second.cond.notify_all();
-            }
-            return response;
-        } else {
-            guard.lock();
-            auto it = conn->guarded_cache.find(token_got);
-            if (it == conn->guarded_cache.end()) {
-                // drop the response
-            } else if (!it->second.closed) {
-                it->second.responses.emplace(std::move(response));
+            if (token_got == token_want) {
+                guard.lock();
                 if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
-                    it->second.closed = true;
+                    auto it = conn->guarded_cache.find(token_got);
+                    if (it != conn->guarded_cache.end()) {
+                        it->second.closed = true;
+                        it->second.cond.notify_all();
+                    }
+                    conn->guarded_cache.erase(it);
                 }
+                conn->guarded_loop_active = false;
+                for (auto& it : conn->guarded_cache) {
+                    it.second.cond.notify_all();
+                }
+                return response;
+            } else {
+                guard.lock();
+                auto it = conn->guarded_cache.find(token_got);
+                if (it == conn->guarded_cache.end()) {
+                    // drop the response
+                } else if (!it->second.closed) {
+                    it->second.responses.emplace(std::move(response));
+                    if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
+                        it->second.closed = true;
+                    }
+                }
+                it->second.cond.notify_all();
+                guard.unlock();
             }
-            it->second.cond.notify_all();
-            guard.unlock();
         }
+    } catch (const TimeoutException &e) {
+        guard.lock();
+        conn->guarded_loop_active = false;
+        guard.unlock();
+
+        throw e;
     }
 }
 
@@ -316,7 +352,7 @@ Token Connection::start_query(const std::string& query) {
 }
 
 void Connection::WriteLock::send_query(uint64_t token, const std::string& query) {
-    if (debug_net > 0) fprintf(stderr, "[%zu] >> %s\n", token, query.c_str());
+    if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] >> %s\n", token, query.c_str());
     char buf[12];
     memcpy(buf, &token, 8);
     uint32_t size = query.size();
@@ -339,14 +375,27 @@ Error Response::as_error() {
     }
     std::string err;
     using RT = Protocol::Response::ResponseType;
+    using ET = Protocol::Response::ErrorType;
     switch (type) {
     case RT::SUCCESS_SEQUENCE: err = "unexpected response: SUCCESS_SEQUENCE"; break;
     case RT::SUCCESS_PARTIAL:  err = "unexpected response: SUCCESS_PARTIAL"; break;
     case RT::SUCCESS_ATOM: err = "unexpected response: SUCCESS_ATOM"; break;
     case RT::WAIT_COMPLETE: err = "unexpected response: WAIT_COMPLETE"; break;
-    case RT::CLIENT_ERROR: err = "client error"; break;
-    case RT::COMPILE_ERROR: err = "compile error"; break;
-    case RT::RUNTIME_ERROR: err = "runtime error"; break;
+    case RT::SERVER_INFO: err = "unexpected response: SERVER_INFO"; break;
+    case RT::CLIENT_ERROR: err = "ReqlDriverError"; break;
+    case RT::COMPILE_ERROR: err = "ReqlServerCompileError"; break;
+    case RT::RUNTIME_ERROR:
+        switch (error_type) {
+        case ET::INTERNAL: err = "ReqlInternalError"; break;
+        case ET::RESOURCE_LIMIT: err = "ReqlResourceLimitError"; break;
+        case ET::QUERY_LOGIC: err = "ReqlQueryLogicError"; break;
+        case ET::NON_EXISTENCE: err = "ReqlNonExistenceError"; break;
+        case ET::OP_FAILED: err = "ReqlOpFailedError"; break;
+        case ET::OP_INDETERMINATE: err = "ReqlOpIndeterminateError"; break;
+        case ET::USER: err = "ReqlUserError"; break;
+        case ET::PERMISSION_ERROR: err = "ReqlPermissionError"; break;
+        default: err = "ReqlRuntimeError"; break;
+        }
     }
     throw Error("%s: %s", err.c_str(), repr.c_str());
 }
@@ -371,6 +420,29 @@ Protocol::Response::ResponseType response_type(double t) {
         return RT::RUNTIME_ERROR;
     default:
         throw Error("Unknown response type");
+    }
+}
+
+Protocol::Response::ErrorType runtime_error_type(double t) {
+    int n = static_cast<int>(t);
+    using ET = Protocol::Response::ErrorType;
+    switch (n) {
+    case static_cast<int>(ET::INTERNAL):
+        return ET::INTERNAL;
+    case static_cast<int>(ET::RESOURCE_LIMIT):
+        return ET::RESOURCE_LIMIT;
+    case static_cast<int>(ET::QUERY_LOGIC):
+        return ET::QUERY_LOGIC;
+    case static_cast<int>(ET::NON_EXISTENCE):
+        return ET::NON_EXISTENCE;
+    case static_cast<int>(ET::OP_FAILED):
+        return ET::OP_FAILED;
+    case static_cast<int>(ET::OP_INDETERMINATE):
+        return ET::OP_INDETERMINATE;
+    case static_cast<int>(ET::USER):
+        return ET::USER;
+    default:
+        throw Error("Unknown error type");
     }
 }
 

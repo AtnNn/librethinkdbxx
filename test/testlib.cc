@@ -2,7 +2,7 @@
 
 #include "testlib.h"
 
-int verbosity = 1;
+int verbosity = 2;
 
 int failed = 0;
 int count = 0;
@@ -10,8 +10,29 @@ std::vector<std::pair<const char*, bool>> section;
 
 std::unique_ptr<R::Connection> conn;
 
+// std::string to_string(const R::Cursor&) {
+//     return "<Cursor>";
+// }
+
+std::string to_string(const R::Query& query) {
+    return to_string(query.get_datum());
+}
+
 std::string to_string(const R::Datum& datum) {
     return write_datum(datum);
+}
+
+std::string to_string(const R::Object& object) {
+    auto it = object.find("special");
+    if (it != object.end()) {
+        std::string type = *(it->second).get_string();
+        auto bag = object.find(type);
+        if (bag != object.end()) {
+            return to_string((R::Datum)bag->second);
+        }
+    }
+
+    return to_string((R::Datum)object);
 }
 
 std::string to_string(const R::Error& error) {
@@ -25,6 +46,12 @@ void enter_section(const char* name) {
         printf("%sSection %s\n", indent(), name);
         section.emplace_back(name, false);
     }
+}
+
+void section_cleanup() {
+    R::db("test").table_list().for_each([=](R::Var table) {
+        return R::db("test").table_drop(*table);
+    }).run(*conn);
 }
 
 void exit_section() {
@@ -84,16 +111,35 @@ std::string repeat(std::string&& s, int n) {
     return string;
 }
 
-R::Query fetch(R::Cursor& cursor, int count) {
+R::Query fetch(R::Cursor& cursor, int count, double timeout) {
+    // printf("fetch(..., %d, %lf)\n", count, timeout);
     R::Array array;
-    for (int i = 0; i < count; ++i) {
-        array.emplace_back(cursor.next());
+    int deadline = time(NULL) + int(timeout);
+    for (int i = 0; count == -1 || i < count; ++i) {
+        // printf("fetching next (%d)\n", i);
+        if (time(NULL) > deadline) break;
+
+        try {
+            array.emplace_back(cursor.next());
+            // printf("got %s\n", write_datum(array[array.size()-1]).c_str());
+        } catch (const R::Error &e) {
+            if (e.message != "next: No more data") {
+                throw e;    // rethrow
+            }
+
+            break;
+        }
     }
+
     return expr(std::move(array));
 }
 
 R::Object bag(R::Array&& array) {
     return R::Object{{"special", "bag"}, {"bag", std::move(array)}};
+};
+
+R::Object bag(R::Datum&& d) {
+    return R::Object{{"special", "bag"}, {"bag", std::move(d)}};
 };
 
 std::string string_key(const R::Datum& datum) {
@@ -133,7 +179,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             const R::Array* data = got.get_field("data")->get_array();
             R::Object object;
             for (R::Datum it : *data) {
-                object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1)); 
+                object.emplace(string_key(it.extract_nth(0)), it.extract_nth(1));
             }
             return equal(object, expected);
         }
@@ -145,11 +191,17 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
         if (!type) break;
         if (*type == "bag") {
             const R::Datum* bag_datum = expected.get_field("bag");
-            if (!bag_datum || !bag_datum->get_array()) break;
+            if (!bag_datum || !bag_datum->get_array()) {
+                break;
+            }
             R::Array bag = *bag_datum->get_array();
             const R::Array* array = got.get_array();
-            if (!array) return false;
-            if (bag.size() != array->size()) return false;
+            if (!array) {
+                return false;
+            }
+            if (bag.size() != array->size()) {
+                return false;
+            }
             for (const auto& it : *array) {
                 auto ref = std::find(bag.begin(), bag.end(), it);
                 if (ref == bag.end()) return false;
@@ -184,7 +236,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
                 if (!partial_datum) break;
                 const R::Array* partial = partial_datum->get_array();
                 if (!partial) break;
-                
+
                 for (const auto& want : *partial) {
                     bool match = false;
                     for (const auto& have : *array) {
@@ -202,6 +254,14 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             if (string && string->size() == 36) {
                 return true;
             }
+        } else if (*type == "regex") {
+            const R::Datum* regex_datum = expected.get_field("regex");
+            if (!regex_datum) break;
+            const std::string* regex = regex_datum->get_string();
+            if (!regex) break;
+            const std::string* str = got.get_string();
+            if (!str) break;
+            return match(str->c_str(), regex->c_str());
         }
     } while(0);
     const R::Object* got_object = got.get_object();
@@ -236,7 +296,11 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
 }
 
 R::Object partial(R::Array&& array) {
-    return R::Object{{"special", "partial"}, {"partial", std::move(array)}};   
+    return R::Object{{"special", "partial"}, {"partial", std::move(array)}};
+}
+
+R::Object regex(const char* pattern) {
+    return R::Object{{"special", "regex"}, {"regex", pattern}};
 }
 
 void clean_slate() {
@@ -254,4 +318,29 @@ std::string truncate(std::string&& string) {
         return string.substr(0, 197) + "...";
     }
     return string;
+}
+
+int len(const R::Datum& d) {
+    const R::Array* arr = d.get_array();
+    if (!arr) throw ("testlib: len: expected an array but got " + to_string(d));
+    return arr->size();
+}
+
+R::Query wait(int n) {
+    sleep(n);
+    return R::expr(n);
+}
+
+R::Datum nil = R::Nil();
+
+R::Array append(R::Array lhs, R::Array rhs) {
+    if (lhs.empty()) {
+        lhs = std::move(rhs);
+    } else {
+        lhs.reserve(lhs.size() + rhs.size());
+        std::move(std::begin(rhs), std::end(rhs), std::back_inserter(lhs));
+        rhs.clear();
+    }
+
+    return lhs;
 }

@@ -46,17 +46,17 @@ tests:
 
     - cd: squash_changes
       ot:
-        cd: ([{'new_val':{'a':1, 'id':100}, 'old_val':null}])
-        rb: ([{'new_val':{'id':100}, 'old_val':null}])
+        js: ([{'new_val':{'a':1, 'id':100}, 'old_val':null}])
+        cd: ([{'new_val':{'id':100}, 'old_val':null}])
 
     # Bad squash values
 
     - py: tbl.changes(squash=null)
       rb: tbl.changes(squash:null)
       js: tbl.changes({squash:null})
-      ot: err('RqlRuntimeError', 'Expected BOOL or NUMBER but found NULL.')
+      ot: err('ReqlQueryLogicError', 'Expected BOOL or NUMBER but found NULL.')
 
     - py: tbl.changes(squash=-10)
       rb: tbl.changes(squash:-10)
       js: tbl.changes({squash:-10})
-      ot: err('RqlRuntimeError', 'Expected BOOL or a positive NUMBER but found a negative NUMBER.')
+      ot: err('ReqlQueryLogicError', 'Expected BOOL or a positive NUMBER but found a negative NUMBER.')

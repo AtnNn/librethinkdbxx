@@ -31,15 +31,16 @@ public:
     Query& operator= (Query&& other) = default;
 
     explicit Query(Datum&&);
+    explicit Query(const Datum&);
     explicit Query(OptArgs&&);
 
     // Create a copy of the Query
     Query copy() const;
 
     Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
-    Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, Var>(f); }
-    Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, Var, Var>(f); }
-    Query(std::function<Query(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var, Var)>, Var, Var, Var>(f); }
+    Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, 0>(f); }
+    Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, 0, 1>(f); }
+    Query(std::function<Query(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var, Var)>, 0, 1, 2>(f); }
     Query(Protocol::Term::TermType type, std::vector<Query>&& args) : datum(Array()) {
         Array dargs;
         for (auto& it : args) {
@@ -176,11 +177,12 @@ public:
     C1(nth, NTH, no_wrap)
     C1(offsets_of, OFFSETS_OF, func_wrap)
     C0(is_empty, IS_EMPTY)
-    C1(union_, UNION, no_wrap)
+    CO_(union_, UNION, no_wrap)
     C1(sample, SAMPLE, no_wrap)
     CO_(group, GROUP, func_wrap)
     C0(ungroup, UNGROUP)
     C1(reduce, REDUCE, no_wrap)
+    CO2(fold, FOLD, no_wrap)
     C0(count, COUNT)
     C1(count, COUNT, func_wrap)
     C0(sum, SUM)
@@ -220,11 +222,11 @@ public:
     C0(downcase, DOWNCASE)
     C_(add, ADD, no_wrap)
     C1(operator+, ADD, no_wrap)
-    C1(sub, SUB, no_wrap)
+    C_(sub, SUB, no_wrap)
     C1(operator-, SUB, no_wrap)
     C_(mul, MUL, no_wrap)
     C1(operator*, MUL, no_wrap)
-    C1(div, DIV, no_wrap)
+    C_(div, DIV, no_wrap)
     C1(operator/, DIV, no_wrap)
     C1(mod, MOD, no_wrap)
     C1(operator%, MOD, no_wrap)
@@ -282,6 +284,10 @@ public:
     CO0(reconfigure, RECONFIGURE)
     C0(status, STATUS)
     CO0(wait, WAIT)
+    C0(floor, FLOOR)
+    C0(ceil, CEIL)
+    C0(round, ROUND)
+    C0(values, VALUES)
 
     // The expansion of this macro fails to compile on some versions of GCC and Clang:
     // C_(operator(), FUNCALL, no_wrap)
@@ -321,7 +327,7 @@ public:
     // $doc(do)
     template <class ...T>
     Query do_(T&& ...a) && {
-        auto list = { std::move(*this), expr(std::forward<T>(a))... };
+        auto list = { std::move(*this), Query::func_wrap(expr(std::forward<T>(a)))... };
         std::vector<Query> args;
         args.reserve(list.size() + 1);
         args.emplace_back(func_wrap(std::move(*(list.end()-1))));
@@ -342,13 +348,15 @@ public:
     // Used internally to implement array()
     static Query make_binary(Query&&);
 
+    Datum get_datum() const;
+
 private:
     friend class Var;
 
-    template <class _>
+    template <int _>
     Var mkvar(std::vector<int>& vars);
 
-    template <class F, class ...A>
+    template <class F, int ...N>
     void set_function(F);
 
     Datum alpha_rename(Query&&);
@@ -383,22 +391,24 @@ private:
     int* id;
 };
 
-template <class _>
+template <int N>
 Var Query::mkvar(std::vector<int>& vars) {
     int id = gen_var_id();
     vars.push_back(id);
     return Var(&*vars.rbegin());
 }
 
-template <class F, class ...A>
+template <class F, int ...N>
 void Query::set_function(F f) {
     std::vector<int> vars;
-    vars.reserve(sizeof...(A));
-    Query body = f(mkvar<A>(vars)...);
+    vars.reserve(sizeof...(N));
+    std::vector<Var> args = { mkvar<N>(vars)... };
+    Query body = f(args[N] ...);
+
     int* low = &*vars.begin();
-    int* high = &*vars.end();
+    int* high = &*(vars.end() - 1);
     for (auto it = body.free_vars.begin(); it != body.free_vars.end(); ) {
-        if (it->second >= low && it->second < high) {
+        if (it->second >= low && it->second <= high) {
             if (it->first != *it->second) {
                 throw Error("Internal error: variable index mis-match");
             }
@@ -452,7 +462,7 @@ CO1(table, TABLE, no_wrap)
 C_(add, ADD, no_wrap)
 C2(sub, SUB)
 C_(mul, MUL, no_wrap)
-C2(div, DIV)
+C_(div, DIV, no_wrap)
 C2(mod, MOD)
 C_(and_, AND, no_wrap)
 C_(or_, OR, no_wrap)
@@ -473,7 +483,7 @@ C1(epoch_time, EPOCH_TIME, no_wrap)
 CO1(iso8601, ISO8601, no_wrap)
 CO1(js, JAVASCRIPT, no_wrap)
 C1(args, ARGS, no_wrap)
-C3(branch, BRANCH)
+C_(branch, BRANCH, no_wrap)
 C0(range)
 C1(range, RANGE, no_wrap)
 C2(range, RANGE)
@@ -482,6 +492,7 @@ C1(error, ERROR, no_wrap)
 C1(json, JSON, no_wrap)
 CO1(http, HTTP, func_wrap)
 C0(uuid)
+C1(uuid, UUID, no_wrap)
 CO2(circle, CIRCLE)
 C1(geojson, GEOJSON, no_wrap)
 C_(line, LINE, no_wrap)
@@ -492,10 +503,26 @@ C1(desc, DESC, func_wrap)
 C1(asc, ASC, func_wrap)
 C0(literal)
 C1(literal, LITERAL, no_wrap)
-CO0(wait)
-C0(rebalance)
 C1(type_of, TYPE_OF, no_wrap)
 C_(map, MAP, func_wrap)
+C1(floor, FLOOR, no_wrap)
+C1(ceil, CEIL, no_wrap)
+C1(round, ROUND, no_wrap)
+C_(union_, UNION, no_wrap)
+C_(group, GROUP, func_wrap)
+C1(count, COUNT, no_wrap)
+C_(count, COUNT, func_wrap)
+C1(sum, SUM, no_wrap)
+C_(sum, SUM, func_wrap)
+C1(avg, AVG, no_wrap)
+C_(avg, AVG, func_wrap)
+C1(min, MIN, no_wrap)
+C_(min, MIN, func_wrap)
+C1(max, MAX, no_wrap)
+C_(max, MAX, func_wrap)
+C1(distinct, DISTINCT, no_wrap)
+C1(contains, CONTAINS, no_wrap)
+C_(contains, CONTAINS, func_wrap)
 
 #undef C0
 #undef C1
