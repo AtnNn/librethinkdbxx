@@ -15,16 +15,6 @@
 #ifndef RAPIDJSON_RAPIDJSON_H_
 #define RAPIDJSON_RAPIDJSON_H_
 
-// force features
-#define RAPIDJSON_HAS_STDSTRING         1
-#define RAPIDJSON_HAS_CXX11_RVALUE_REFS 1
-#define RAPIDJSON_HAS_CXX11_NOEXCEPT    1
-#define RAPIDJSON_HAS_CXX11_TYPETRAITS  1
-#define RAPIDJSON_HAS_CXX11_RANGE_FOR   1
-
-
-
-
 /*!\file rapidjson.h
     \brief common definitions and configuration
 
