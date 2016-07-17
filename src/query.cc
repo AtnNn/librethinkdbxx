@@ -55,9 +55,9 @@ Cursor Query::run(Connection& conn, OptArgs&& opts) {
     if (!free_vars.empty()) {
         throw Error("run: query has free variables");
     }
-    OutputBuffer out;
-    write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Query(std::move(opts)).datum}, out);
-    Token token = conn.start_query(out.buffer);
+
+    Token token =
+        conn.start_query(write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Query(std::move(opts)).datum}));
     auto it = opts.find("noreply");
     if (it != opts.end()) {
         bool* no_reply = it->second.datum.get_boolean();
@@ -65,6 +65,7 @@ Cursor Query::run(Connection& conn, OptArgs&& opts) {
             return Cursor(std::move(token), Nil());
         }
     }
+
     return Cursor(std::move(token));
 }
 
@@ -122,7 +123,7 @@ Datum Query::alpha_rename(Query&& query) {
         free_vars = std::move(query.free_vars);
         return std::move(query.datum);
     }
-    
+
     std::map<int, int> subst;
     for (auto it = query.free_vars.begin(); it != query.free_vars.end(); ++it) {
         auto var = free_vars.find(it->first);
@@ -256,7 +257,7 @@ Query::Query(OptArgs&& optargs) : datum(Nil()) {
     Object oargs;
     for (auto& it : optargs) {
         oargs.emplace(it.first, alpha_rename(std::move(it.second)));
-    }        
+    }
     datum = std::move(oargs);
 }
 

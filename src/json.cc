@@ -13,6 +13,11 @@
 #include "json.h"
 #include "error.h"
 #include "utils.h"
+#include "datum.h"
+
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/prettywriter.h"
 
 namespace RethinkDB {
 
@@ -159,8 +164,8 @@ Datum read_array(BufferedInputStream& stream) {
         if (c == ']') {
             stream.pos++;
             return Datum(std::move(array));
-        } 
-    } 
+        }
+    }
 }
 
 void read_exact(BufferedInputStream& stream, const char* str) {
@@ -249,75 +254,11 @@ Datum read_datum(const std::string& string) {
     return datum;
 }
 
-struct datum_writer {
-    void operator() (Nil, OutputStream& out) {
-        out.write("null");
-    }
-    void operator() (bool boolean, OutputStream& out) {
-        out.write(boolean ? "true" : "false");
-    }
-    void operator() (double number, OutputStream& out) {
-        if (number == 0 && std::signbit(number) == 1) {
-            out.write("-0.0");
-        } else {
-            out.printf("%.17lg", number);
-        }
-    }
-    void operator() (const std::string& string, OutputStream& out) {
-        out.write("\"");
-        for (char c : string) {
-            switch (c) {
-            case '\n': out.write("\\n"); break;
-            case '\r': out.write("\\r"); break;
-            case '"': out.write("\\\""); break;
-            case '\\': out.write("\\\\"); break;
-            case 0: out.write("\\u0000"); break;
-            default: out.write(&c, 1); break;
-            }
-        }
-        out.write("\"");
-    }
-    void operator() (const Object& object, OutputStream& out) {
-        out.write("{");
-        bool first = true;
-        for (const auto& it : object) {
-            if (!first) {
-                out.write(",");
-            }
-            (*this)(it.first, out);
-            out.write(":");
-            it.second.apply<void>(*this, out);
-            first = false;
-        }
-        out.write("}");
-    }
-    void operator() (const Array& array, OutputStream& out) {
-        out.write("[");
-        bool first = true;
-        for (const auto& it : array) {
-            if (!first) {
-                out.write(",");
-            }
-            it.apply<void>(*this, out);
-            first = false; 
-        }        
-        out.write("]");
-    }
-    template <class T>
-    void operator() (const T& a, OutputStream& out) {
-        Datum(a).to_raw().apply<void>(*this, out);
-    }
-};
-
-void write_datum(const Datum& datum, OutputStream& out) {
-    datum_writer write_datum;
-    datum.apply<void>(write_datum, out);
-}
-
 std::string write_datum(const Datum& datum) {
-    OutputBuffer out;
-    write_datum(datum, out);
-    return out.buffer;
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    datum.write_json(&writer);
+    return std::string(buffer.GetString(), buffer.GetSize());
 }
 
 }

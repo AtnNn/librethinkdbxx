@@ -59,6 +59,7 @@ private:
     void close_token(uint64_t);
     void ask_for_more(uint64_t);
 
+    friend class SocketReadStream;
     friend class ResponseBuffer;
     friend class Token;
 
