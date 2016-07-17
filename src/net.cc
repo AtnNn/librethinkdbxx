@@ -21,7 +21,7 @@
 
 namespace RethinkDB {
 
-const int debug_net = 1;
+const int debug_net = 0;
 
 class Connection::ReadLock {
 public:
@@ -367,11 +367,14 @@ Datum read_datum_v2(const rapidjson::Value &json) {
         Object result;
         for (rapidjson::Value::ConstMemberIterator it = json.MemberBegin();
              it != json.MemberEnd(); ++it) {
-            std::string key(it->name.GetString(), it->name.GetStringLength());
-            result.emplace(std::make_pair(key, read_datum_v2(it->value)));
+            result.emplace(std::make_pair(std::string(it->name.GetString(),
+                                          it->name.GetStringLength()),
+                                          read_datum_v2(it->value)));
         }
 
-        return Datum(result);
+        if (result.count("$reql_type$"))
+            return Datum(std::move(result)).from_raw();
+        return Datum(std::move(result));
     } break;
     case rapidjson::kArrayType: {
         Array result;
@@ -379,7 +382,7 @@ Datum read_datum_v2(const rapidjson::Value &json) {
              it != json.End(); ++it) {
             result.emplace_back(read_datum_v2(*it));
         }
-        return Datum(result);
+        return Datum(std::move(result));
     } break;
     case rapidjson::kStringType: {
         return Datum(std::string(json.GetString(), json.GetStringLength()));
