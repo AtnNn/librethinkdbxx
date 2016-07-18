@@ -2,7 +2,6 @@
 #include <cmath>
 
 #include "datum.h"
-#include "error.h"
 #include "json.h"
 #include "utils.h"
 #include "cursor.h"

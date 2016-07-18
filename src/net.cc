@@ -9,7 +9,6 @@
 #include <cstring>
 #include <cinttypes>
 
-#include "error.h"
 #include "net.h"
 #include "stream.h"
 #include "json.h"
@@ -269,21 +268,6 @@ Response Connection::wait_for_response(uint64_t token_want, double wait) {
     return reader.read_loop(token_want, std::move(guard), wait);
 }
 
-class ResponseBuffer : public BufferedInputStream {
-public:
-    ResponseBuffer(Connection::ReadLock* reader_, uint32_t length)
-        : reader(reader_), remaining(length) { }
-    size_t read_chunk(char *buf, size_t size) {
-        size_t n = reader->recv_some(buf, std::min(size, remaining));
-        remaining -= n;
-        return n;
-    }
-private:
-    Connection::ReadLock* reader;
-    size_t remaining;
-};
-
-
 class SocketReadStream {
 public:
     typedef char Ch;    //!< Character type (byte).
@@ -304,8 +288,8 @@ public:
           count_(0),
           eof_(false)
     {
-        // RAPIDJSON_ASSERT(fp_ != 0);
-        // RAPIDJSON_ASSERT(bufferSize >= 4);
+        RAPIDJSON_ASSERT(reader_ != 0);
+        RAPIDJSON_ASSERT(bufferSize >= 4);
         Read();
     }
 
@@ -352,47 +336,6 @@ private:
     bool eof_;
 };
 
-Datum read_datum_v2(const rapidjson::Value &json) {
-    switch(json.GetType()) {
-    case rapidjson::kNullType: {
-        return Nil();
-    } break;
-    case rapidjson::kFalseType: {
-        return Datum(false);
-    } break;
-    case rapidjson::kTrueType: {
-        return Datum(true);
-    } break;
-    case rapidjson::kObjectType: {
-        Object result;
-        for (rapidjson::Value::ConstMemberIterator it = json.MemberBegin();
-             it != json.MemberEnd(); ++it) {
-            result.emplace(std::make_pair(std::string(it->name.GetString(),
-                                          it->name.GetStringLength()),
-                                          read_datum_v2(it->value)));
-        }
-
-        if (result.count("$reql_type$"))
-            return Datum(std::move(result)).from_raw();
-        return Datum(std::move(result));
-    } break;
-    case rapidjson::kArrayType: {
-        Array result;
-        for (rapidjson::Value::ConstValueIterator it = json.Begin();
-             it != json.End(); ++it) {
-            result.emplace_back(read_datum_v2(*it));
-        }
-        return Datum(std::move(result));
-    } break;
-    case rapidjson::kStringType: {
-        return Datum(std::string(json.GetString(), json.GetStringLength()));
-    } break;
-    case rapidjson::kNumberType: {
-        return Datum(json.GetDouble());
-    } break;
-    }
-}
-
 Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait) {
     if (!guard.inner_lock) {
         guard.lock();
@@ -415,12 +358,10 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
             char buffer[length];
             SocketReadStream bis(this, buffer, sizeof(buffer));
             rapidjson::AutoUTFInputStream<unsigned, SocketReadStream> eis(bis);
-
             rapidjson::Document d;
             d.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis);
+            Datum datum = read_datum(d);
 
-            // ResponseBuffer stream(this, length);
-            Datum datum = read_datum_v2(d);
             if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
 
             Response response(std::move(datum));

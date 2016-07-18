@@ -16,7 +16,6 @@ namespace RethinkDB {
 
 class Token;
 class Connection;
-class ResponseBuffer;
 
 // Used internally to convert a raw response type into an enum
 Protocol::Response::ResponseType response_type(double t);
@@ -60,7 +59,6 @@ private:
     void ask_for_more(uint64_t);
 
     friend class SocketReadStream;
-    friend class ResponseBuffer;
     friend class Token;
 
     const uint32_t version_magic = static_cast<uint32_t>(Protocol::VersionDummy::Version::V0_4);
