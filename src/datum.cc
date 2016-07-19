@@ -1,8 +1,13 @@
+#include <float.h>
+#include <cmath>
+
 #include "datum.h"
-#include "error.h"
 #include "json.h"
 #include "utils.h"
 #include "cursor.h"
+
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
 
 namespace RethinkDB {
 
@@ -337,4 +342,64 @@ Datum Datum::to_raw() const {
 Datum::Datum(Cursor&& cursor) : Datum(cursor.to_datum()) { }
 Datum::Datum(const Cursor& cursor) : Datum(cursor.to_datum()) { }
 
+static const double max_dbl_int = 0x1LL << DBL_MANT_DIG;
+static const double min_dbl_int = max_dbl_int * -1;
+bool number_as_integer(double d, int64_t *i_out) {
+    static_assert(DBL_MANT_DIG == 53, "Doubles are wrong size.");
+
+    if (min_dbl_int <= d && d <= max_dbl_int) {
+        int64_t i = d;
+        if (static_cast<double>(i) == d) {
+            *i_out = i;
+            return true;
+        }
+    }
+    return false;
 }
+
+template void Datum::write_json(
+    rapidjson::Writer<rapidjson::StringBuffer> *writer) const;
+template void Datum::write_json(
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> *writer) const;
+
+template <class json_writer_t>
+void Datum::write_json(json_writer_t *writer) const {
+    switch (type) {
+    case Type::NIL: writer->Null(); break;
+    case Type::BOOLEAN: writer->Bool(value.boolean); break;
+    case Type::NUMBER: {
+        const double d = value.number;
+        // Always print -0.0 as a double since integers cannot represent -0.
+        // Otherwise check if the number is an integer and print it as such.
+        int64_t i;
+        if (!(d == 0.0 && std::signbit(d)) && number_as_integer(d, &i)) {
+            writer->Int64(i);
+        } else {
+            writer->Double(d);
+        }
+    } break;
+    case Type::STRING: writer->String(value.string.data(), value.string.size()); break;
+    case Type::ARRAY: {
+        writer->StartArray();
+        for (auto it : value.array) {
+            it.write_json(writer);
+        }
+        writer->EndArray();
+    } break;
+    case Type::OBJECT: {
+        writer->StartObject();
+        for (auto it : value.object) {
+            writer->Key(it.first.data(), it.first.size());
+            it.second.write_json(writer);
+        }
+        writer->EndObject();
+    } break;
+
+    case Type::BINARY:
+    case Type::TIME:
+        to_raw().write_json(writer);
+        break;
+    }
+}
+
+}   // namespace RethinkDB

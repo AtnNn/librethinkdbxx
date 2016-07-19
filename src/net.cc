@@ -9,11 +9,14 @@
 #include <cstring>
 #include <cinttypes>
 
-#include "error.h"
 #include "net.h"
 #include "stream.h"
 #include "json.h"
 #include "exceptions.h"
+
+#include "rapidjson/rapidjson.h"
+#include "rapidjson/encodedstream.h"
+#include "rapidjson/document.h"
 
 namespace RethinkDB {
 
@@ -234,20 +237,6 @@ void Connection::ask_for_more(uint64_t token) {
     writer.send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::CONTINUE))})));
 }
 
-class ResponseBuffer : public BufferedInputStream {
-public:
-    ResponseBuffer(Connection::ReadLock* reader_, uint32_t length)
-        : reader(reader_), remaining(length) { }
-    size_t read_chunk(char *buf, size_t size) {
-        size_t n = reader->recv_some(buf, std::min(size, remaining));
-        remaining -= n;
-        return n;
-    }
-private:
-    Connection::ReadLock* reader;
-    size_t remaining;
-};
-
 Response Connection::wait_for_response(uint64_t token_want, double wait) {
     CacheLock guard(*this);
 
@@ -279,6 +268,74 @@ Response Connection::wait_for_response(uint64_t token_want, double wait) {
     return reader.read_loop(token_want, std::move(guard), wait);
 }
 
+class SocketReadStream {
+public:
+    typedef char Ch;    //!< Character type (byte).
+
+    //! Constructor.
+    /*!
+        \param fp File pointer opened for read.
+        \param buffer user-supplied buffer.
+        \param bufferSize size of buffer in bytes. Must >=4 bytes.
+    */
+    SocketReadStream(Connection::ReadLock* reader, char* buffer, size_t bufferSize)
+        : reader_(reader),
+          buffer_(buffer),
+          bufferSize_(bufferSize),
+          bufferLast_(0),
+          current_(buffer_),
+          readCount_(0),
+          count_(0),
+          eof_(false)
+    {
+        RAPIDJSON_ASSERT(reader_ != 0);
+        RAPIDJSON_ASSERT(bufferSize >= 4);
+        Read();
+    }
+
+    Ch Peek() const { return *current_; }
+    Ch Take() { Ch c = *current_; Read(); return c; }
+    size_t Tell() const { return count_ + static_cast<size_t>(current_ - buffer_); }
+
+    // Not implemented
+    void Put(Ch) { RAPIDJSON_ASSERT(false); }
+    void Flush() { RAPIDJSON_ASSERT(false); }
+    Ch* PutBegin() { RAPIDJSON_ASSERT(false); return 0; }
+    size_t PutEnd(Ch*) { RAPIDJSON_ASSERT(false); return 0; }
+
+    // For encoding detection only.
+    const Ch* Peek4() const {
+        return (current_ + 4 <= bufferLast_) ? current_ : 0;
+    }
+
+private:
+    void Read() {
+        if (current_ < bufferLast_) {
+            ++current_;
+        } else if (!eof_) {
+            count_ += readCount_;
+            readCount_ = reader_->recv_some(buffer_, bufferSize_);
+            bufferLast_ = buffer_ + readCount_ - 1;
+            current_ = buffer_;
+
+            if ((count_ + readCount_) == bufferSize_) {
+                buffer_[readCount_] = '\0';
+                ++bufferLast_;
+                eof_ = true;
+            }
+        }
+    }
+
+    Connection::ReadLock* reader_;
+    Ch *buffer_;
+    size_t bufferSize_;
+    Ch *bufferLast_;
+    Ch *current_;
+    size_t readCount_;
+    size_t count_;  //!< Number of characters read
+    bool eof_;
+};
+
 Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait) {
     if (!guard.inner_lock) {
         guard.lock();
@@ -297,8 +354,14 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
             memcpy(&token_got, buf, 8);
             uint32_t length;
             memcpy(&length, buf + 8, 4);
-            ResponseBuffer stream(this, length);
-            Datum datum = read_datum(stream);
+
+            char buffer[length];
+            SocketReadStream bis(this, buffer, sizeof(buffer));
+            rapidjson::AutoUTFInputStream<unsigned, SocketReadStream> eis(bis);
+            rapidjson::Document d;
+            d.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis);
+            Datum datum = read_datum(d);
+
             if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
 
             Response response(std::move(datum));

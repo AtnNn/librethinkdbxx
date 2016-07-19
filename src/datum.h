@@ -183,8 +183,9 @@ public:
     // Recursively replace objects with a $reql_type$ field into the datum they represent
     Datum from_raw() const;
 
-private:
+    template <class json_writer_t> void write_json(json_writer_t *writer) const;
 
+private:
     enum class Type {
         ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, BINARY, STRING, TIME
         // POINT, LINE, POLYGON
