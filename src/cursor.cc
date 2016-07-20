@@ -131,12 +131,7 @@ bool Cursor::has_next(double wait) const {
             if (no_more) {
                 return false;
             }
-
-            try {
-                add_response(token.wait_for_response(wait));
-            } catch (const TimeoutException&) {
-                return false;
-            }
+            add_response(token.wait_for_response(wait));
         } else {
             return true;
         }
