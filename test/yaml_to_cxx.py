@@ -29,7 +29,7 @@ def convert(python, prec, file, type):
         expr = ast.parse(python, filename=file, mode='eval').body
         cxx = to_cxx(expr, prec, Ctx(vars=[], type=type, context=None))
         return sub('" \\+ "', '', cxx)
-    except Unhandled:
+    except (Unhandled, AssertionError):
         print("While translating: " + python, file=stderr)
         raise
     except SyntaxError as e:
@@ -136,7 +136,10 @@ def to_cxx(expr, prec, ctx, parentType=None):
             if expr.id in ['frozenset']:
                 raise Discard("frozenset not supported")
             elif expr.id in ctx.vars:
-                return parens(prec, 3, "*" + expr.id)
+                if ctx.type == 'query':
+                    return parens(prec, 3, "*" + expr.id)
+                else:
+                    return expr.id
             elif (expr.id == 'range' or expr.id == 'xrange') and ctx.type != 'query':
                 return 'array_range'
             elif expr.id == 'nil' and ctx.type == 'query':
@@ -200,13 +203,17 @@ def to_cxx(expr, prec, ctx, parentType=None):
             assert len(expr.generators) == 1
             assert type(expr.generators[0]) == ast.comprehension
             assert type(expr.generators[0].target) == ast.Name
+            assert expr.generators[0].ifs == []
             seq = to_cxx(expr.generators[0].iter, 2, ctx)
             if ctx.type == 'query':
                 var = expr.generators[0].target.id
-                body = to_cxx(expr.elt, 17, ctx_set(ctx, vars = ctx.vars + [var], type='query'))
+                body = to_cxx(expr.elt, 17, ctx_set(ctx, vars = ctx.vars + [var]))
                 return seq + ".map([=](R::Var " + var + "){ return " + body + "; })"
             else:
-                return seq
+                var = expr.generators[0].target.id
+                body = to_cxx(expr.elt, 17, ctx_set(ctx, vars = ctx.vars + [var]))
+                # assume int
+                return "array_map([=](int " + var + "){ return " + body + "; }, " + seq + ")"
         elif t == ast.Compare:
             assert len(expr.ops) == 1
             assert len(expr.comparators) == 1

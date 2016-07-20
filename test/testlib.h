@@ -208,5 +208,13 @@ inline R::Array array_range(int x, int y) {
     return ret;
 }
 
+inline R::Array array_map(std::function<int(int)> f, R::Array a){
+    R::Array ret;
+    for(R::Datum& d: a) {
+        ret.push_back(f(d.extract_number()));
+    }
+    return ret;
+}
+
 R::Array append(R::Array lhs, R::Array rhs);
 
