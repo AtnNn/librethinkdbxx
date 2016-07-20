@@ -83,7 +83,7 @@ struct temp_table {
         char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         char name_[15] = "temp_";
         for (unsigned int i = 5; i + 1 < sizeof name_; ++i) {
-            name_[i] = chars[random() % sizeof chars];
+            name_[i] = chars[random() % (sizeof chars - 1)];
         }
         name_[14] = 0;
         R::table_create(name_).run(*conn);
@@ -94,7 +94,9 @@ struct temp_table {
         try {
             R::table_drop(name).run(*conn);
         } catch (const R::Error &e) {
-            printf("error dropping temp_table: %s\n", e.message.c_str());
+            if(!strstr(e.message.c_str(), "does not exist")){
+                printf("error dropping temp_table: %s\n", e.message.c_str());
+            }
         }
     }
 
