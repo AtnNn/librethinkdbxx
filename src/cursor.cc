@@ -4,7 +4,7 @@
 namespace RethinkDB {
 
 Cursor::Cursor(Token&& token_) : token(std::move(token_)) {
-    add_response(token.wait_for_response(DEFAULT_WAIT));
+    add_response(token.wait_for_response(FOREVER));
     if (!no_more) {
         // token.ask_for_more();
     }
@@ -77,7 +77,7 @@ void Cursor::clear_and_read_all() const {
         index = 0;
     }
     while (!no_more) {
-        add_response(token.wait_for_response(DEFAULT_WAIT));
+        add_response(token.wait_for_response(FOREVER));
     }
 }
 

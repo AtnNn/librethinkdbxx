@@ -10,7 +10,9 @@
 #include "datum.h"
 #include "error.h"
 
-#define DEFAULT_WAIT    10.0
+#define FOREVER (-1)
+#define SECOND 1
+#define MICROSECOND 0.0000001
 
 namespace RethinkDB {
 
@@ -110,7 +112,7 @@ public:
         conn->ask_for_more(token);
     }
 
-    Response wait_for_response(double wait = DEFAULT_WAIT) const {
+    Response wait_for_response(double wait) const {
         return conn->wait_for_response(token, wait);
     }
 
