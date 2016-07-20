@@ -2,7 +2,7 @@
 
 #include "testlib.h"
 
-int verbosity = 2;
+int verbosity = 0;
 
 int failed = 0;
 int count = 0;
