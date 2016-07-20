@@ -26,8 +26,8 @@ class Connection::ReadLock {
 public:
     ReadLock(Connection& conn) : lock(conn.read_lock), conn(&conn) { }
 
-    ssize_t recv_some(char*, size_t, double wait = DEFAULT_WAIT);
-    void recv(char*, size_t, double wait = DEFAULT_WAIT);
+    ssize_t recv_some(char*, size_t, double wait);
+    void recv(char*, size_t, double wait);
     std::string recv(size_t);
     size_t recv_cstring(char*, size_t);
 
@@ -177,7 +177,7 @@ void Connection::ReadLock::recv(char* buf, size_t size, double wait) {
 size_t Connection::ReadLock::recv_cstring(char* buf, size_t max_size){
     size_t size = 0;
     for (; size < max_size; size++) {
-        recv(buf, 1);
+        recv(buf, 1, FOREVER);
         if (*buf == 0) {
             break;
         }
@@ -202,7 +202,7 @@ void Connection::WriteLock::send(const std::string data) {
 
 std::string Connection::ReadLock::recv(size_t size) {
     char buf[size];
-    recv(buf, size);
+    recv(buf, size, FOREVER);
     return buf;
 }
 

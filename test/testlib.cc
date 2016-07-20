@@ -128,6 +128,9 @@ R::Query fetch(R::Cursor& cursor, int count, double timeout) {
             }
 
             break;
+        } catch (const R::TimeoutException &e){
+            // printf("fetch timeout\n");
+            break;
         }
     }
 
