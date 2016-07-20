@@ -117,10 +117,11 @@ R::Query fetch(R::Cursor& cursor, int count, double timeout) {
     int deadline = time(NULL) + int(timeout);
     for (int i = 0; count == -1 || i < count; ++i) {
         // printf("fetching next (%d)\n", i);
-        if (time(NULL) > deadline) break;
+        time_t now = time(NULL);
+        if (now > deadline) break;
 
         try {
-            array.emplace_back(cursor.next());
+            array.emplace_back(cursor.next(deadline - now));
             // printf("got %s\n", write_datum(array[array.size()-1]).c_str());
         } catch (const R::Error &e) {
             if (e.message != "next: No more data") {
