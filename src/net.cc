@@ -334,10 +334,10 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
             }
         }
     } catch (const TimeoutException &e) {
-        guard.lock();
+        if (!guard.inner_lock){
+            guard.lock();
+        }
         conn->guarded_loop_active = false;
-        guard.unlock();
-
         throw e;
     }
 }
