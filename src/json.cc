@@ -269,10 +269,18 @@ struct datum_writer {
             switch (c) {
             case '\n': out.write("\\n"); break;
             case '\r': out.write("\\r"); break;
+            case '\t': out.write("\\t"); break;
             case '"': out.write("\\\""); break;
             case '\\': out.write("\\\\"); break;
             case 0: out.write("\\u0000"); break;
-            default: out.write(&c, 1); break;
+            default:
+                if((unsigned int)c <= 0x1F){
+                    char buf[7];
+                    sprintf(buf, "\\u%04x", c);
+                    out.write(buf, 6);
+                }else{
+                    out.write(&c, 1);
+                }
             }
         }
         out.write("\"");
