@@ -339,12 +339,9 @@ R::Datum nil = R::Nil();
 
 R::Array append(R::Array lhs, R::Array rhs) {
     if (lhs.empty()) {
-        lhs = std::move(rhs);
-    } else {
-        lhs.reserve(lhs.size() + rhs.size());
-        std::move(std::begin(rhs), std::end(rhs), std::back_inserter(lhs));
-        rhs.clear();
+        return rhs;
     }
-
+    lhs.reserve(lhs.size() + rhs.size());
+    std::move(std::begin(rhs), std::end(rhs), std::back_inserter(lhs));
     return lhs;
 }
