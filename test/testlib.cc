@@ -262,7 +262,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             if (!regex) break;
             const std::string* str = got.get_string();
             if (!str) break;
-            return match(str->c_str(), regex->c_str());
+            return match(regex->c_str(), str->c_str());
         }
     } while(0);
     const R::Object* got_object = got.get_object();
