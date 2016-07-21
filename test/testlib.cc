@@ -22,19 +22,6 @@ std::string to_string(const R::Datum& datum) {
     return write_datum(datum);
 }
 
-std::string to_string(const R::Object& object) {
-    auto it = object.find("special");
-    if (it != object.end()) {
-        std::string type = *(it->second).get_string();
-        auto bag = object.find(type);
-        if (bag != object.end()) {
-            return to_string((R::Datum)bag->second);
-        }
-    }
-
-    return to_string((R::Datum)object);
-}
-
 std::string to_string(const R::Error& error) {
     return "Error(\"" + error.message + "\")";
 }
