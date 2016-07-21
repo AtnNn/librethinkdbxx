@@ -37,9 +37,9 @@ o_files := $(patsubst %, build/obj/%.o, $(modules))
 d_files := $(patsubst %, build/dep/%.d, $(modules))
 
 skip_tests := regression/1133 regression/767 regression/1005 # python-only
-skip_tests += changefeeds/squash # double run
 skip_tests += arity # arity errors are compile-time
-skip_tests += geo # geo
+skip_tests += geo # geo types not implemented yet
+skip_tests += limits # possibly broken tests: https://github.com/rethinkdb/rethinkdb/issues/5940
 
 upstream_tests := \
   $(filter-out %.rb.%, \
