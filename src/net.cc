@@ -446,7 +446,7 @@ Error Response::as_error() {
     case RT::WAIT_COMPLETE: err = "unexpected response: WAIT_COMPLETE"; break;
     case RT::SERVER_INFO: err = "unexpected response: SERVER_INFO"; break;
     case RT::CLIENT_ERROR: err = "ReqlDriverError"; break;
-    case RT::COMPILE_ERROR: err = "ReqlServerCompileError"; break;
+    case RT::COMPILE_ERROR: err = "ReqlCompileError"; break;
     case RT::RUNTIME_ERROR:
         switch (error_type) {
         case ET::INTERNAL: err = "ReqlInternalError"; break;

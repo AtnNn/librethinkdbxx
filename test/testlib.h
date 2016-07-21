@@ -34,9 +34,7 @@ void exit_section();
 
 struct err {
     err(const char* type_, std::string message_, R::Array&& backtrace_ = {}) :
-        type(type_), message(message_), backtrace(std::move(backtrace_)) {
-        if (type == "ReqlCompileError") type = "ReqlServerCompileError";
-    }
+        type(type_), message(message_), backtrace(std::move(backtrace_)) { }
 
     std::string convert_type() const {
         return type;
