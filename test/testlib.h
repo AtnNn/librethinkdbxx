@@ -216,3 +216,7 @@ inline R::Array array_map(F f, R::Array a){
 
 R::Array append(R::Array lhs, R::Array rhs);
 
+template <class T>
+std::string str(T x){
+    return to_string(x);
+}
