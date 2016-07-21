@@ -107,7 +107,6 @@ void clean_slate();
 // std::string to_string(const R::Cursor&);
 std::string to_string(const R::Query&);
 std::string to_string(const R::Datum&);
-std::string to_string(const R::Object&);
 std::string to_string(const R::Error&);
 std::string to_string(const err_regex&);
 std::string to_string(const err&);
