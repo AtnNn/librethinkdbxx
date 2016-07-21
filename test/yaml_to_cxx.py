@@ -93,7 +93,7 @@ def to_cxx_expr(expr, prec, ctx):
             return "R::expr(" + to_cxx(expr, 17, ctx) + ")"
     return to_cxx(expr, prec, ctx)
 
-def to_cxx(expr, prec, ctx, parentType=None):
+def to_cxx(expr, prec, ctx):
     context = ctx.context
     ctx = Ctx(vars=ctx.vars, type=ctx.type, context=None)
     try:
@@ -178,10 +178,7 @@ def to_cxx(expr, prec, ctx, parentType=None):
             if ctx.type == 'query':
                 return "R::array(" + ', '.join([to_cxx(el, 17, ctx) for el in expr.elts]) + ")"
             else:
-                if parentType == ast.List:
-                    return "{ R::Array{" + ', '.join([to_cxx(el, 17, ctx, t) for el in expr.elts]) + "} }"
-                else:
-                    return "R::Array{" + ', '.join([to_cxx(el, 17, ctx, t) for el in expr.elts]) + "}"
+                return "R::Array{" + ', '.join([to_cxx(el, 17, ctx) for el in expr.elts]) + "}"
         elif t == ast.Lambda:
             assert not expr.args.vararg
             assert not expr.args.kwarg
