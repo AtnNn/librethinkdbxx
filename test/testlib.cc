@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <regex>
 
 #include "testlib.h"
 
@@ -54,11 +55,7 @@ bool equal(const R::Error& a, const err& b) {
 }
 
 bool match(const char* pattern, const char* string) {
-    try {
-        return !R::expr(string).match(pattern).run(*conn).to_datum().is_nil();
-    } catch (const R::Error&) {
-        return false;
-    }
+    return std::regex_match(string, std::regex(pattern));
 }
 
 bool equal(const R::Error& a, const err_regex& b) {
