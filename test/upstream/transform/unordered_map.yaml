@@ -44,7 +44,7 @@ tests:
 
     # DESC isn't allowed inside a function
     - py: odd.order_by("num").union(even.order_by("num"), interleave=lambda x: r.desc(x["num"]))
-      ot: err("ReqlServerCompileError", "DESC may only be used as an argument to ORDER_BY or UNION.")
+      ot: err("ReqlCompileError", "DESC may only be used as an argument to ORDER_BY or UNION.")
 
     # Wrap a function with DESC
     - py: odd.order_by(r.desc("num")).union(even.order_by(r.desc("num")), interleave= [r.desc(lambda x: x["num"])])
