@@ -59,6 +59,9 @@ struct err_regex {
     std::string type;
     std::string message;
     R::Array backtrace;
+    std::string regex() const {
+        return type + ": " + message;
+    }
 };
 
 R::Object regex(const char* pattern);

@@ -63,7 +63,7 @@ bool equal(const R::Error& a, const err_regex& b) {
         a.message == "runtime error: Expected type STRING but found NUMBER.") {
         return true;
     }
-    return match(b.message.c_str(), a.message.c_str());
+    return match(b.regex().c_str(), a.message.c_str());
 }
 
 std::string to_string(const err_regex& error) {
