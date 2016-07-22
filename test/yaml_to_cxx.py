@@ -416,7 +416,7 @@ p("enter_section(\"%s: %s\");" % (name, data['desc'].replace('"', '\\"')))
 if 'table_variable_name' in data:
     for var in split(" |, ", data['table_variable_name']):
         p("temp_table %s_table;" % var)
-        p("R::Query %s = %s_table.table();" % (var, var))
+        p("R::Term %s = %s_table.table();" % (var, var))
 
 defined = []
 for py, ot, tp, runopts in python_tests(data["tests"]):

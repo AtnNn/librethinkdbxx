@@ -22,8 +22,8 @@ DESTDIR ?=
 .DELETE_ON_ERROR:
 SHELL := /bin/bash
 
-modules := net datum json query cursor types utils
-headers := utils error exceptions types datum json net cursor query
+modules := net datum json term cursor types utils
+headers := utils error exceptions types datum json net cursor term
 
 o_files := $(patsubst %, build/obj/%.o, $(modules))
 d_files := $(patsubst %, build/dep/%.d, $(modules))

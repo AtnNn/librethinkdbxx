@@ -9,39 +9,39 @@ namespace RethinkDB {
 
 using TT = Protocol::Term::TermType;
 
-class Query;
+class Term;
 class Var;
 
-// An alias for the Query constructor
+// An alias for the Term constructor
 template <class T>
-Query expr(T&&);
+Term expr(T&&);
 
 int gen_var_id();
 
 // Can be used as the last argument to some ReQL commands that expect named arguments
-using OptArgs = std::map<std::string, Query>;
+using OptArgs = std::map<std::string, Term>;
 
-// Represents a ReQL query (RethinkDB Query Language)
+// Represents a ReQL Term (RethinkDB Query Language)
 // Designed to be used with r-value *this
-class Query {
+class Term {
 public:
-    Query(const Query& other) = default;
-    Query(Query&& other) = default;
-    Query& operator= (const Query& other) = default;
-    Query& operator= (Query&& other) = default;
+    Term(const Term& other) = default;
+    Term(Term&& other) = default;
+    Term& operator= (const Term& other) = default;
+    Term& operator= (Term&& other) = default;
 
-    explicit Query(Datum&&);
-    explicit Query(const Datum&);
-    explicit Query(OptArgs&&);
+    explicit Term(Datum&&);
+    explicit Term(const Datum&);
+    explicit Term(OptArgs&&);
 
-    // Create a copy of the Query
-    Query copy() const;
+    // Create a copy of the Term
+    Term copy() const;
 
-    Query(std::function<Query()> f) : datum(Nil()) { set_function<std::function<Query()>>(f); }
-    Query(std::function<Query(Var)> f) : datum(Nil()) { set_function<std::function<Query(Var)>, 0>(f); }
-    Query(std::function<Query(Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var)>, 0, 1>(f); }
-    Query(std::function<Query(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Query(Var, Var, Var)>, 0, 1, 2>(f); }
-    Query(Protocol::Term::TermType type, std::vector<Query>&& args) : datum(Array()) {
+    Term(std::function<Term()> f) : datum(Nil()) { set_function<std::function<Term()>>(f); }
+    Term(std::function<Term(Var)> f) : datum(Nil()) { set_function<std::function<Term(Var)>, 0>(f); }
+    Term(std::function<Term(Var, Var)> f) : datum(Nil()) { set_function<std::function<Term(Var, Var)>, 0, 1>(f); }
+    Term(std::function<Term(Var, Var, Var)> f) : datum(Nil()) { set_function<std::function<Term(Var, Var, Var)>, 0, 1, 2>(f); }
+    Term(Protocol::Term::TermType type, std::vector<Term>&& args) : datum(Array()) {
         Array dargs;
         for (auto& it : args) {
             dargs.emplace_back(alpha_rename(std::move(it)));
@@ -49,7 +49,7 @@ public:
         datum = Datum(Array{ type, std::move(dargs) });
     }
 
-    Query(Protocol::Term::TermType type, std::vector<Query>&& args, OptArgs&& optargs) : datum(Array()) {
+    Term(Protocol::Term::TermType type, std::vector<Term>&& args, OptArgs&& optargs) : datum(Array()) {
         Array dargs;
         for (auto& it : args) {
             dargs.emplace_back(alpha_rename(std::move(it)));
@@ -62,8 +62,8 @@ public:
     }
 
     // Used internally to support row
-    static Query func_wrap(Query&&);
-    static Query func_wrap(const Query&);
+    static Term func_wrap(Term&&);
+    static Term func_wrap(const Term&);
 
 
     // These macros are used to define most ReQL commands
@@ -74,62 +74,62 @@ public:
     // The third argument, wrap, allows converting arguments into functions if they contain row
 
 #define C0(name, type) \
-    Query name() &&      { return Query(TT::type, std::vector<Query>{ std::move(*this) }); } \
-    Query name() const & { return Query(TT::type, std::vector<Query>{ *this            }); }
+    Term name() &&      { return Term(TT::type, std::vector<Term>{ std::move(*this) }); } \
+    Term name() const & { return Term(TT::type, std::vector<Term>{ *this            }); }
 #define C1(name, type, wrap)                                            \
     template <class T>                                                  \
-    Query name(T&& a) && { return Query(TT::type, std::vector<Query>{ std::move(*this), wrap(expr(std::forward<T>(a))) }); } \
+    Term name(T&& a) && { return Term(TT::type, std::vector<Term>{ std::move(*this), wrap(expr(std::forward<T>(a))) }); } \
     template <class T>                                                  \
-    Query name(T&& a) const & { return Query(TT::type, std::vector<Query>{ *this, wrap(expr(std::forward<T>(a))) }); }
+    Term name(T&& a) const & { return Term(TT::type, std::vector<Term>{ *this, wrap(expr(std::forward<T>(a))) }); }
 #define C2(name, type)                                                  \
-    template <class T, class U> Query name(T&& a, U&& b) && {           \
-        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+    template <class T, class U> Term name(T&& a, U&& b) && {           \
+        return Term(TT::type, std::vector<Term>{ std::move(*this),    \
                     expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); } \
-    template <class T, class U> Query name(T&& a, U&& b) const & {      \
-        return Query(TT::type, std::vector<Query>{ *this,        \
+    template <class T, class U> Term name(T&& a, U&& b) const & {      \
+        return Term(TT::type, std::vector<Term>{ *this,        \
                     expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); }
 #define C_(name, type, wrap)                                            \
-    template <class ...T> Query name(T&& ...a) && {                     \
-        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+    template <class ...T> Term name(T&& ...a) && {                     \
+        return Term(TT::type, std::vector<Term>{ std::move(*this),    \
                     wrap(expr(std::forward<T>(a)))... }); }             \
-    template <class ...T> Query name(T&& ...a) const & {                \
-        return Query(TT::type, std::vector<Query>{ *this,        \
+    template <class ...T> Term name(T&& ...a) const & {                \
+        return Term(TT::type, std::vector<Term>{ *this,        \
                     wrap(expr(std::forward<T>(a)))... }); }
 #define CO0(name, type)                                                 \
-    Query name(OptArgs&& optarg = {}) && {                              \
-        return Query(TT::type, std::vector<Query>{ std::move(*this) }, std::move(optarg)); } \
-    Query name(OptArgs&& optarg = {}) const & {                         \
-        return Query(TT::type, std::vector<Query>{ *this }, std::move(optarg)); }
+    Term name(OptArgs&& optarg = {}) && {                              \
+        return Term(TT::type, std::vector<Term>{ std::move(*this) }, std::move(optarg)); } \
+    Term name(OptArgs&& optarg = {}) const & {                         \
+        return Term(TT::type, std::vector<Term>{ *this }, std::move(optarg)); }
 #define CO1(name, type, wrap)                                                \
-    template <class T> Query name(T&& a, OptArgs&& optarg = {}) && {    \
-        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+    template <class T> Term name(T&& a, OptArgs&& optarg = {}) && {    \
+        return Term(TT::type, std::vector<Term>{ std::move(*this),    \
                     wrap(expr(std::forward<T>(a))) }, std::move(optarg)); } \
-    template <class T> Query name(T&& a, OptArgs&& optarg = {}) const & { \
-        return Query(TT::type, std::vector<Query>{ *this,               \
+    template <class T> Term name(T&& a, OptArgs&& optarg = {}) const & { \
+        return Term(TT::type, std::vector<Term>{ *this,               \
                     wrap(expr(std::forward<T>(a))) }, std::move(optarg)); }
 #define CO2(name, type, wrap)                                           \
-    template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) && { \
-        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+    template <class T, class U> Term name(T&& a, U&& b, OptArgs&& optarg = {}) && { \
+        return Term(TT::type, std::vector<Term>{ std::move(*this),    \
                     wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))) }, std::move(optarg)); } \
-    template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) const & { \
-        return Query(TT::type, std::vector<Query>{ *this,        \
+    template <class T, class U> Term name(T&& a, U&& b, OptArgs&& optarg = {}) const & { \
+        return Term(TT::type, std::vector<Term>{ *this,        \
                     wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))) }, std::move(optarg)); }
 #define CO3(name, type, wrap)                                                \
-    template <class T, class U, class V> Query name(T&& a, U&& b, V&& c, OptArgs&& optarg = {}) && { \
-        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+    template <class T, class U, class V> Term name(T&& a, U&& b, V&& c, OptArgs&& optarg = {}) && { \
+        return Term(TT::type, std::vector<Term>{ std::move(*this),    \
                     wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))), \
                     wrap(expr(std::forward<V>(c))) }, std::move(optarg)); } \
-    template <class T, class U, class V> Query name(T&& a, U&& b, V&& c, OptArgs&& optarg = {}) const & { \
-        return Query(TT::type, std::vector<Query>{ *this,        \
+    template <class T, class U, class V> Term name(T&& a, U&& b, V&& c, OptArgs&& optarg = {}) const & { \
+        return Term(TT::type, std::vector<Term>{ *this,        \
                     wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))), \
                     wrap(expr(std::forward<V>(c)))}, std::move(optarg)); }
 #define CO4(name, type, wrap)                                                \
-    template <class T, class U, class V, class W> Query name(T&& a, U&& b, V&& c, W&& d, OptArgs&& optarg = {}) && { \
-        return Query(TT::type, std::vector<Query>{ std::move(*this),    \
+    template <class T, class U, class V, class W> Term name(T&& a, U&& b, V&& c, W&& d, OptArgs&& optarg = {}) && { \
+        return Term(TT::type, std::vector<Term>{ std::move(*this),    \
         wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))), \
         wrap(expr(std::forward<V>(c))), wrap(expr(std::forward<W>(d))) }, std::move(optarg)); } \
-    template <class T, class U, class V, class W> Query name(T&& a, U&& b, V&& c, W&& d, OptArgs&& optarg = {}) const & { \
-        return Query(TT::type, std::vector<Query>{ *this,        \
+    template <class T, class U, class V, class W> Term name(T&& a, U&& b, V&& c, W&& d, OptArgs&& optarg = {}) const & { \
+        return Term(TT::type, std::vector<Term>{ *this,        \
         wrap(expr(std::forward<T>(a))), wrap(expr(std::forward<U>(b))), \
         wrap(expr(std::forward<V>(c))), wrap(expr(std::forward<W>(d))) }, std::move(optarg)); }
 #define CO_(name, type, wrap)                                       \
@@ -296,17 +296,17 @@ public:
     // $doc(do)
 
     template <class T, class ...U>
-    typename std::enable_if<!std::is_same<T, Var>::value, Query>::type
+    typename std::enable_if<!std::is_same<T, Var>::value, Term>::type
     operator() (T&& a, U&& ...b) && {
-        return Query(TT::FUNCALL, std::vector<Query>{
+        return Term(TT::FUNCALL, std::vector<Term>{
                 std::move(*this),
                 expr(std::forward<T>(a)),
                 expr(std::forward<U>(b))... });
     }
     template <class T, class ...U>
-    typename std::enable_if<!std::is_same<T, Var>::value, Query>::type
+    typename std::enable_if<!std::is_same<T, Var>::value, Term>::type
     operator() (T&& a, U&& ...b) const & {
-        return Query(TT::FUNCALL, std::vector<Query>{
+        return Term(TT::FUNCALL, std::vector<Term>{
                 *this,
                 expr(std::forward<T>(a)),
                 expr(std::forward<U>(b))... });
@@ -320,33 +320,33 @@ public:
 #undef CO1
 #undef CO2
 
-    // Send the query to the server and return the results.
+    // Send the term to the server and return the results.
     // Errors returned by the server are thrown.
     Cursor run(Connection&, OptArgs&& args = {});
 
     // $doc(do)
     template <class ...T>
-    Query do_(T&& ...a) && {
-        auto list = { std::move(*this), Query::func_wrap(expr(std::forward<T>(a)))... };
-        std::vector<Query> args;
+    Term do_(T&& ...a) && {
+        auto list = { std::move(*this), Term::func_wrap(expr(std::forward<T>(a)))... };
+        std::vector<Term> args;
         args.reserve(list.size() + 1);
         args.emplace_back(func_wrap(std::move(*(list.end()-1))));
         for (auto it = list.begin(); it + 1 != list.end(); ++it) {
             args.emplace_back(std::move(*it));
         }
-        return Query(TT::FUNCALL, std::move(args));
+        return Term(TT::FUNCALL, std::move(args));
     }
 
-    // Adds optargs to an already built query
-    Query opt(OptArgs&& optargs) && {
-        return Query(std::move(*this), std::move(optargs));
+    // Adds optargs to an already built term
+    Term opt(OptArgs&& optargs) && {
+        return Term(std::move(*this), std::move(optargs));
     }
 
     // Used internally to implement object()
-    static Query make_object(std::vector<Query>&&);
+    static Term make_object(std::vector<Term>&&);
 
     // Used internally to implement array()
-    static Query make_binary(Query&&);
+    static Term make_binary(Term&&);
 
     Datum get_datum() const;
 
@@ -359,31 +359,31 @@ private:
     template <class F, int ...N>
     void set_function(F);
 
-    Datum alpha_rename(Query&&);
+    Datum alpha_rename(Term&&);
 
-    Query(Query&& orig, OptArgs&& optargs);
+    Term(Term&& orig, OptArgs&& optargs);
 
     std::map<int, int*> free_vars;
     Datum datum;
 };
 
-// A query representing null
-Query nil();
+// A term representing null
+Term nil();
 
 template <class T>
-Query expr(T&& a) {
-    return Query(std::forward<T>(a));
+Term expr(T&& a) {
+    return Term(std::forward<T>(a));
 }
 
 // Represents a ReQL variable.
 // This type is passed to functions used in ReQL queries.
 class Var {
 public:
-    // Convert to a Query
-    Query operator*() const {
-        Query query(TT::VAR, std::vector<Query>{expr(*id)});
-        query.free_vars = {{*id, id}};
-        return query;
+    // Convert to a term
+    Term operator*() const {
+        Term term(TT::VAR, std::vector<Term>{expr(*id)});
+        term.free_vars = {{*id, id}};
+        return term;
     }
 
     Var(int* id_) : id(id_) { }
@@ -392,18 +392,18 @@ private:
 };
 
 template <int N>
-Var Query::mkvar(std::vector<int>& vars) {
+Var Term::mkvar(std::vector<int>& vars) {
     int id = gen_var_id();
     vars.push_back(id);
     return Var(&*vars.rbegin());
 }
 
 template <class F, int ...N>
-void Query::set_function(F f) {
+void Term::set_function(F f) {
     std::vector<int> vars;
     vars.reserve(sizeof...(N));
     std::vector<Var> args = { mkvar<N>(vars)... };
-    Query body = f(args[N] ...);
+    Term body = f(args[N] ...);
 
     int* low = &*vars.begin();
     int* high = &*(vars.end() - 1);
@@ -423,33 +423,33 @@ void Query::set_function(F f) {
 
 // These macros are similar to those defined above, but for top-level ReQL operations
 
-#define C0(name) Query name();
-#define C0_IMPL(name, type) Query name() { return Query(TT::type, std::vector<Query>{}); }
-#define CO0(name) Query name(OptArgs&& optargs = {});
-#define CO0_IMPL(name, type) Query name(OptArgs&& optargs) { return Query(TT::type, std::vector<Query>{}, std::move(optargs)); }
-#define C1(name, type, wrap) template <class T> Query name(T&& a) {          \
-        return Query(TT::type, std::vector<Query>{ wrap(expr(std::forward<T>(a))) }); }
-#define C2(name, type) template <class T, class U> Query name(T&& a, U&& b) { \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); }
+#define C0(name) Term name();
+#define C0_IMPL(name, type) Term name() { return Term(TT::type, std::vector<Term>{}); }
+#define CO0(name) Term name(OptArgs&& optargs = {});
+#define CO0_IMPL(name, type) Term name(OptArgs&& optargs) { return Term(TT::type, std::vector<Term>{}, std::move(optargs)); }
+#define C1(name, type, wrap) template <class T> Term name(T&& a) {          \
+        return Term(TT::type, std::vector<Term>{ wrap(expr(std::forward<T>(a))) }); }
+#define C2(name, type) template <class T, class U> Term name(T&& a, U&& b) { \
+        return Term(TT::type, std::vector<Term>{ expr(std::forward<T>(a)), expr(std::forward<U>(b)) }); }
 #define C3(name, type) template <class A, class B, class C>    \
-    Query name(A&& a, B&& b, C&& c) { return Query(TT::type, std::vector<Query>{ \
+    Term name(A&& a, B&& b, C&& c) { return Term(TT::type, std::vector<Term>{ \
                 expr(std::forward<A>(a)), expr(std::forward<B>(b)), expr(std::forward<C>(c)) }); }
 #define C4(name, type) template <class A, class B, class C, class D>    \
-    Query name(A&& a, B&& b, C&& c, D&& d) { return Query(TT::type, std::vector<Query>{ \
+    Term name(A&& a, B&& b, C&& c, D&& d) { return Term(TT::type, std::vector<Term>{ \
                 expr(std::forward<A>(a)), expr(std::forward<B>(b)),     \
                     expr(std::forward<C>(c)), expr(std::forward<D>(d))}); }
 #define C7(name, type) template <class A, class B, class C, class D, class E, class F, class G> \
-    Query name(A&& a, B&& b, C&& c, D&& d, E&& e, F&& f, G&& g) { return Query(TT::type, std::vector<Query>{ \
+    Term name(A&& a, B&& b, C&& c, D&& d, E&& e, F&& f, G&& g) { return Term(TT::type, std::vector<Term>{ \
         expr(std::forward<A>(a)), expr(std::forward<B>(b)), expr(std::forward<C>(c)), \
         expr(std::forward<D>(d)), expr(std::forward<E>(e)), expr(std::forward<F>(f)), \
             expr(std::forward<G>(g))}); }
-#define C_(name, type, wrap) template <class ...T> Query name(T&& ...a) {    \
-        return Query(TT::type, std::vector<Query>{ wrap(expr(std::forward<T>(a)))... }); }
-#define CO1(name, type, wrap) template <class T> Query name(T&& a, OptArgs&& optarg = {}) {       \
-        return Query(TT::type, std::vector<Query>{ wrap(expr(std::forward<T>(a)))}, std::move(optarg)); }
-#define CO2(name, type) template <class T, class U> Query name(T&& a, U&& b, OptArgs&& optarg = {}) { \
-        return Query(TT::type, std::vector<Query>{ expr(std::forward<T>(a)), expr(std::forward<U>(b))}, std::move(optarg)); }
-#define func_wrap Query::func_wrap
+#define C_(name, type, wrap) template <class ...T> Term name(T&& ...a) {    \
+        return Term(TT::type, std::vector<Term>{ wrap(expr(std::forward<T>(a)))... }); }
+#define CO1(name, type, wrap) template <class T> Term name(T&& a, OptArgs&& optarg = {}) {       \
+        return Term(TT::type, std::vector<Term>{ wrap(expr(std::forward<T>(a)))}, std::move(optarg)); }
+#define CO2(name, type) template <class T, class U> Term name(T&& a, U&& b, OptArgs&& optarg = {}) { \
+        return Term(TT::type, std::vector<Term>{ expr(std::forward<T>(a)), expr(std::forward<U>(b))}, std::move(optarg)); }
+#define func_wrap Term::func_wrap
 
 C1(db_create, DB_CREATE, no_wrap)
 C1(db_drop, DB_DROP, no_wrap)
@@ -537,20 +537,20 @@ C_(contains, CONTAINS, func_wrap)
 
 // $doc(do)
 template <class R, class ...T>
-Query do_(R&& a, T&& ...b) {
+Term do_(R&& a, T&& ...b) {
     return expr(std::forward<R>(a)).do_(std::forward<T>(b)...);
 }
 
 // $doc(object)
 template <class ...T>
-Query object(T&& ...a) {
-    return Query::make_object(std::vector<Query>{ expr(std::forward<T>(a))... });
+Term object(T&& ...a) {
+    return Term::make_object(std::vector<Term>{ expr(std::forward<T>(a))... });
 }
 
 // $doc(binary)
 template <class T>
-Query binary(T&& a) {
-    return Query::make_binary(expr(std::forward<T>(a)));
+Term binary(T&& a) {
+    return Term::make_binary(expr(std::forward<T>(a)));
 }
 
 // Construct an empty optarg
@@ -565,26 +565,26 @@ OptArgs optargs(const char* key, V&& val, T&& ...rest) {
     return opts;
 }
 
-extern Query row;
-extern Query maxval;
-extern Query minval;
-extern Query january;
-extern Query february;
-extern Query march;
-extern Query april;
-extern Query may;
-extern Query june;
-extern Query july;
-extern Query august;
-extern Query september;
-extern Query october;
-extern Query november;
-extern Query december;
-extern Query monday;
-extern Query tuesday;
-extern Query wednesday;
-extern Query thursday;
-extern Query friday;
-extern Query saturday;
-extern Query sunday;
+extern Term row;
+extern Term maxval;
+extern Term minval;
+extern Term january;
+extern Term february;
+extern Term march;
+extern Term april;
+extern Term may;
+extern Term june;
+extern Term july;
+extern Term august;
+extern Term september;
+extern Term october;
+extern Term november;
+extern Term december;
+extern Term monday;
+extern Term tuesday;
+extern Term wednesday;
+extern Term thursday;
+extern Term friday;
+extern Term saturday;
+extern Term sunday;
 }

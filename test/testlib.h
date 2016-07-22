@@ -74,9 +74,9 @@ R::Object partial(R::Array&& array);
 R::Datum uuid();
 R::Object arrlen(int n, R::Datum&& datum);
 R::Object arrlen(int n);
-R::Query new_table();
+R::Term new_table();
 std::string repeat(std::string&& s, int n);
-R::Query fetch(R::Cursor& cursor, int count = -1, double timeout = 1);
+R::Term fetch(R::Cursor& cursor, int count = -1, double timeout = 1);
 R::Object bag(R::Array&& array);
 R::Object bag(R::Datum&& d);
 
@@ -102,14 +102,14 @@ struct temp_table {
         }
     }
 
-    R::Query table() { return R::table(name); }
+    R::Term table() { return R::table(name); }
     std::string name;
 };
 
 void clean_slate();
 
 // std::string to_string(const R::Cursor&);
-std::string to_string(const R::Query&);
+std::string to_string(const R::Term&);
 std::string to_string(const R::Datum&);
 std::string to_string(const R::Error&);
 std::string to_string(const err_regex&);
@@ -177,7 +177,7 @@ void test_eq(const char* code, const R::Cursor& val, const U expected) {
 
 int len(const R::Datum&);
 
-R::Query wait(int n);
+R::Term wait(int n);
 
 #define PacificTimeZone() (-7 * 3600)
 #define UTCTimeZone() (0)
@@ -188,7 +188,7 @@ inline R::Cursor maybe_run(R::Cursor& c, R::Connection&, R::OptArgs&& o = {}) {
     return std::move(c);
 }
 
-inline R::Cursor maybe_run(R::Query q, R::Connection& c, R::OptArgs&& o = {}) {
+inline R::Cursor maybe_run(R::Term q, R::Connection& c, R::OptArgs&& o = {}) {
     return q.run(c, std::move(o));
 }
 

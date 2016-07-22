@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <set>
 
-#include "query.h"
+#include "term.h"
 #include "json.h"
 
 namespace RethinkDB {
@@ -28,12 +28,12 @@ struct {
     Datum operator() (T&& atomic) {
         return Datum(std::forward<T>(atomic));
     }
-} datum_to_query;
+} datum_to_term;
 
-Query::Query(Datum&& datum_) : datum(datum_.apply<Datum>(datum_to_query)) { }
-Query::Query(const Datum& datum_) : datum(datum_.apply<Datum>(datum_to_query)) { }
+Term::Term(Datum&& datum_) : datum(datum_.apply<Datum>(datum_to_term)) { }
+Term::Term(const Datum& datum_) : datum(datum_.apply<Datum>(datum_to_term)) { }
 
-Query::Query(Query&& orig, OptArgs&& new_optargs) : datum(Nil()) {
+Term::Term(Term&& orig, OptArgs&& new_optargs) : datum(Nil()) {
     Datum* cur = orig.datum.get_nth(2);
     Object optargs;
     free_vars = std::move(orig.free_vars);
@@ -46,17 +46,17 @@ Query::Query(Query&& orig, OptArgs&& new_optargs) : datum(Nil()) {
     datum = Array{ std::move(orig.datum.extract_nth(0)), std::move(orig.datum.extract_nth(1)), std::move(optargs) };
 }
 
-Query nil() {
-    return Query(Nil());
+Term nil() {
+    return Term(Nil());
 }
 
-Cursor Query::run(Connection& conn, OptArgs&& opts) {
+Cursor Term::run(Connection& conn, OptArgs&& opts) {
     if (!free_vars.empty()) {
-        throw Error("run: query has free variables");
+        throw Error("run: term has free variables");
     }
 
     Token token =
-        conn.start_query(write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Query(std::move(opts)).datum}));
+        conn.start_query(write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Term(std::move(opts)).datum}));
     auto it = opts.find("noreply");
     if (it != opts.end()) {
         bool* no_reply = it->second.datum.get_boolean();
@@ -117,14 +117,14 @@ static int new_var_id(const std::map<int, int*>& vars) {
     }
 }
 
-Datum Query::alpha_rename(Query&& query) {
+Datum Term::alpha_rename(Term&& term) {
     if (free_vars.empty()) {
-        free_vars = std::move(query.free_vars);
-        return std::move(query.datum);
+        free_vars = std::move(term.free_vars);
+        return std::move(term.datum);
     }
 
     std::map<int, int> subst;
-    for (auto it = query.free_vars.begin(); it != query.free_vars.end(); ++it) {
+    for (auto it = term.free_vars.begin(); it != term.free_vars.end(); ++it) {
         auto var = free_vars.find(it->first);
         if (var == free_vars.end()) {
             free_vars.emplace(it->first, it->second);
@@ -135,9 +135,9 @@ Datum Query::alpha_rename(Query&& query) {
         }
     }
     if (subst.empty()) {
-        return std::move(query.datum);
+        return std::move(term.datum);
     } else {
-        return query.datum.apply<Datum>(alpha_renamer, subst, false);
+        return term.datum.apply<Datum>(alpha_renamer, subst, false);
     }
 }
 
@@ -157,19 +157,19 @@ CO0_IMPL(wait, WAIT)
 C0_IMPL(rebalance, REBALANCE)
 CO0_IMPL(random, RANDOM)
 
-Query row(TT::IMPLICIT_VAR, {});
-Query minval(TT::MINVAL, {});
-Query maxval(TT::MAXVAL, {});
+Term row(TT::IMPLICIT_VAR, {});
+Term minval(TT::MINVAL, {});
+Term maxval(TT::MAXVAL, {});
 
-Query binary(const std::string& data) {
+Term binary(const std::string& data) {
     return expr(Binary(data));
 }
 
-Query binary(std::string&& data) {
+Term binary(std::string&& data) {
     return expr(Binary(data));
 }
 
-Query binary(const char* data) {
+Term binary(const char* data) {
     return expr(Binary(data));
 }
 
@@ -207,34 +207,34 @@ struct {
     }
 } needs_func_wrap;
 
-Query Query::func_wrap(Query&& query) {
-    if (query.datum.apply<bool>(needs_func_wrap)) {
-        return Query(TT::FUNC, {expr(Array{new_var_id(query.free_vars)}), std::move(query)});
+Term Term::func_wrap(Term&& term) {
+    if (term.datum.apply<bool>(needs_func_wrap)) {
+        return Term(TT::FUNC, {expr(Array{new_var_id(term.free_vars)}), std::move(term)});
     }
-    return query;
+    return term;
 }
 
-Query Query::func_wrap(const Query& query) {
-    if (query.datum.apply<bool>(needs_func_wrap)) {
-        // TODO return Query(TT::FUNC, {expr(Array{new_var_id(query.free_vars)}), query.copy()});
-        return Query(Nil());
+Term Term::func_wrap(const Term& term) {
+    if (term.datum.apply<bool>(needs_func_wrap)) {
+        // TODO return Term(TT::FUNC, {expr(Array{new_var_id(Term.free_vars)}), Term.copy()});
+        return Term(Nil());
     }
-    return query;
+    return term;
 }
 
-Query Query::make_object(std::vector<Query>&& args) {
+Term Term::make_object(std::vector<Term>&& args) {
     if (args.size() % 2 != 0) {
-        return Query(TT::OBJECT, std::move(args));
+        return Term(TT::OBJECT, std::move(args));
     }
     std::set<std::string> keys;
     for (auto it = args.begin(); it != args.end() && it + 1 != args.end(); it += 2) {
         std::string* key = it->datum.get_string();
         if (!key || keys.count(*key)) {
-            return Query(TT::OBJECT, std::move(args));
+            return Term(TT::OBJECT, std::move(args));
         }
         keys.insert(*key);
     }
-    Query ret{Nil()};
+    Term ret{Nil()};
     Object object;
     for (auto it = args.begin(); it != args.end(); it += 2) {
         std::string* key = it->datum.get_string();
@@ -244,15 +244,15 @@ Query Query::make_object(std::vector<Query>&& args) {
     return ret;
 }
 
-Query Query::make_binary(Query&& query) {
-    std::string* string = query.datum.get_string();
+Term Term::make_binary(Term&& term) {
+    std::string* string = term.datum.get_string();
     if (string) {
         return expr(Binary(std::move(*string)));
     }
-    return Query(TT::BINARY, std::vector<Query>{query});
+    return Term(TT::BINARY, std::vector<Term>{term});
 }
 
-Query::Query(OptArgs&& optargs) : datum(Nil()) {
+Term::Term(OptArgs&& optargs) : datum(Nil()) {
     Object oargs;
     for (auto& it : optargs) {
         oargs.emplace(it.first, alpha_rename(std::move(it.second)));
@@ -264,31 +264,31 @@ OptArgs optargs() {
     return OptArgs{};
 }
 
-Query january(TT::JANUARY, {});
-Query february(TT::FEBRUARY, {});
-Query march(TT::MARCH, {});
-Query april(TT::APRIL, {});
-Query may(TT::MAY, {});
-Query june(TT::JUNE, {});
-Query july(TT::JULY, {});
-Query august(TT::AUGUST, {});
-Query september(TT::SEPTEMBER, {});
-Query october(TT::OCTOBER, {});
-Query november(TT::NOVEMBER, {});
-Query december(TT::DECEMBER, {});
-Query monday(TT::MONDAY, {});
-Query tuesday(TT::TUESDAY, {});
-Query wednesday(TT::WEDNESDAY, {});
-Query thursday(TT::THURSDAY, {});
-Query friday(TT::FRIDAY, {});
-Query saturday(TT::SATURDAY, {});
-Query sunday(TT::SUNDAY, {});
+Term january(TT::JANUARY, {});
+Term february(TT::FEBRUARY, {});
+Term march(TT::MARCH, {});
+Term april(TT::APRIL, {});
+Term may(TT::MAY, {});
+Term june(TT::JUNE, {});
+Term july(TT::JULY, {});
+Term august(TT::AUGUST, {});
+Term september(TT::SEPTEMBER, {});
+Term october(TT::OCTOBER, {});
+Term november(TT::NOVEMBER, {});
+Term december(TT::DECEMBER, {});
+Term monday(TT::MONDAY, {});
+Term tuesday(TT::TUESDAY, {});
+Term wednesday(TT::WEDNESDAY, {});
+Term thursday(TT::THURSDAY, {});
+Term friday(TT::FRIDAY, {});
+Term saturday(TT::SATURDAY, {});
+Term sunday(TT::SUNDAY, {});
 
-Query Query::copy() const {
+Term Term::copy() const {
     return *this;
 }
 
-Datum Query::get_datum() const {
+Datum Term::get_datum() const {
     return datum;
 }
 
