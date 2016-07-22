@@ -63,9 +63,6 @@ private:
     friend class SocketReadStream;
     friend class Token;
 
-    const uint32_t version_magic = static_cast<uint32_t>(Protocol::VersionDummy::Version::V0_4);
-    const uint32_t json_magic = static_cast<uint32_t>(Protocol::VersionDummy::Protocol::JSON);
-
     class ReadLock;
     class WriteLock;
     class CacheLock;
