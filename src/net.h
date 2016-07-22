@@ -16,8 +16,11 @@
 
 namespace RethinkDB {
 
+class Term;
 class Token;
 class Connection;
+
+using OptArgs = std::map<std::string, Term>;
 
 // Used internally to convert a raw response type into an enum
 Protocol::Response::ResponseType response_type(double t);
@@ -50,18 +53,19 @@ public:
     Connection(const Connection&) = delete;
     Connection(Connection&&) = default;
 
-    // Used internally by Term::run
-    Token start_query(const std::string&);
-
     void close();
 
 private:
+    Token start_query(const std::string& query);
+    Cursor start_query(Term *term, OptArgs&& args);
+
     Response wait_for_response(uint64_t, double);
     void close_token(uint64_t);
     void ask_for_more(uint64_t);
 
     friend class SocketReadStream;
     friend class Token;
+    friend class Term;
 
     class ReadLock;
     class WriteLock;
