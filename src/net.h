@@ -80,7 +80,7 @@ private:
         std::queue<Response> responses;
     };
 
-    std::map<uint32_t, TokenCache> guarded_cache;
+    std::map<uint64_t, TokenCache> guarded_cache;
     uint64_t guarded_next_token;
     int guarded_sockfd;
     bool guarded_loop_active;
@@ -93,41 +93,21 @@ std::unique_ptr<Connection> connect(std::string host = "localhost", int port = 2
 // A token can be used to create a cursor
 class Token {
 public:
-    Token(Connection::WriteLock&);
-    Token() : conn(nullptr) { }
-
+    Token(uint64_t token = 0, Connection *conn = nullptr);
     Token(const Token&) = delete;
-    Token& operator=(Token&& other){
-        token = other.token;
-        conn = other.conn;
-        other.conn = NULL;
-        return *this;
-    }
-    Token(Token&& other) : conn(other.conn), token(other.token) {
-        other.conn = NULL;
-    }
+    Token(Token&& other);
+    Token& operator=(Token&& other);
+    ~Token();
 
-    void ask_for_more() const {
-        conn->ask_for_more(token);
-    }
+    void ask_for_more() const;
+    Response wait_for_response(double wait) const;
+    void close() const;
 
-    Response wait_for_response(double wait) const {
-        return conn->wait_for_response(token, wait);
-    }
-
-    void close() const {
-        if(conn) {
-            conn->close_token(token);
-        }
-    }
-
-    ~Token() {
-        close();
-    }
 private:
     friend class Connection;
-    Connection* conn;
+
     uint64_t token;
+    Connection* conn;
 };
 
 }
