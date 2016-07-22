@@ -34,9 +34,7 @@ void exit_section();
 
 struct err {
     err(const char* type_, std::string message_, R::Array&& backtrace_ = {}) :
-        type(type_), message(message_), backtrace(std::move(backtrace_)) {
-        if (type == "ReqlCompileError") type = "ReqlServerCompileError";
-    }
+        type(type_), message(message_), backtrace(std::move(backtrace_)) { }
 
     std::string convert_type() const {
         return type;
@@ -61,6 +59,9 @@ struct err_regex {
     std::string type;
     std::string message;
     R::Array backtrace;
+    std::string regex() const {
+        return type + ": " + message;
+    }
 };
 
 R::Object regex(const char* pattern);
@@ -74,7 +75,7 @@ R::Object arrlen(int n, R::Datum&& datum);
 R::Object arrlen(int n);
 R::Query new_table();
 std::string repeat(std::string&& s, int n);
-R::Query fetch(R::Cursor& cursor, int count = -1, double timeout = 0.2);
+R::Query fetch(R::Cursor& cursor, int count = -1, double timeout = 1);
 R::Object bag(R::Array&& array);
 R::Object bag(R::Datum&& d);
 
@@ -83,7 +84,7 @@ struct temp_table {
         char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         char name_[15] = "temp_";
         for (unsigned int i = 5; i + 1 < sizeof name_; ++i) {
-            name_[i] = chars[random() % sizeof chars];
+            name_[i] = chars[random() % (sizeof chars - 1)];
         }
         name_[14] = 0;
         R::table_create(name_).run(*conn);
@@ -94,7 +95,9 @@ struct temp_table {
         try {
             R::table_drop(name).run(*conn);
         } catch (const R::Error &e) {
-            printf("error dropping temp_table: %s\n", e.message.c_str());
+            if(!strstr(e.message.c_str(), "does not exist")){
+                printf("error dropping temp_table: %s\n", e.message.c_str());
+            }
         }
     }
 
@@ -107,7 +110,6 @@ void clean_slate();
 // std::string to_string(const R::Cursor&);
 std::string to_string(const R::Query&);
 std::string to_string(const R::Datum&);
-std::string to_string(const R::Object&);
 std::string to_string(const R::Error&);
 std::string to_string(const err_regex&);
 std::string to_string(const err&);
@@ -206,5 +208,18 @@ inline R::Array array_range(int x, int y) {
     return ret;
 }
 
+template <class F>
+inline R::Array array_map(F f, R::Array a){
+    R::Array ret;
+    for(R::Datum& d: a) {
+        ret.push_back(f(d.extract_number()));
+    }
+    return ret;
+}
+
 R::Array append(R::Array lhs, R::Array rhs);
 
+template <class T>
+std::string str(T x){
+    return to_string(x);
+}

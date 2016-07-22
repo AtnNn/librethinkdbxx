@@ -36,13 +36,13 @@ public:
     };
 
     // Consume the next element
-    Datum& next(double wait = DEFAULT_WAIT) const;
+    Datum& next(double wait = FOREVER) const;
 
     // Peek at the next element
-    Datum& peek(double wait = DEFAULT_WAIT) const;
+    Datum& peek(double wait = FOREVER) const;
 
     // Call f on every element of the Cursor
-    void each(std::function<void(Datum&&)> f, double wait = DEFAULT_WAIT) const;
+    void each(std::function<void(Datum&&)> f, double wait = FOREVER) const;
 
     // Consume and return all elements
     Array&& to_array() &&;
@@ -58,7 +58,7 @@ public:
     void close() const;
 
     // Returns false if there are no more elements
-    bool has_next(double wait = DEFAULT_WAIT) const;
+    bool has_next(double wait = FOREVER) const;
 
     // Returns false if the cursor is a stream
     bool is_single() const;

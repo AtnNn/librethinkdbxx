@@ -1,8 +1,9 @@
 #include <algorithm>
+#include <regex>
 
 #include "testlib.h"
 
-int verbosity = 2;
+int verbosity = 0;
 
 int failed = 0;
 int count = 0;
@@ -67,11 +68,7 @@ bool equal(const R::Error& a, const err& b) {
 }
 
 bool match(const char* pattern, const char* string) {
-    try {
-        return !R::expr(string).match(pattern).run(*conn).to_datum().is_nil();
-    } catch (const R::Error&) {
-        return false;
-    }
+    return std::regex_match(string, std::regex(pattern));
 }
 
 bool equal(const R::Error& a, const err_regex& b) {
@@ -79,7 +76,7 @@ bool equal(const R::Error& a, const err_regex& b) {
         a.message == "runtime error: Expected type STRING but found NUMBER.") {
         return true;
     }
-    return match(b.message.c_str(), a.message.c_str());
+    return match(b.regex().c_str(), a.message.c_str());
 }
 
 std::string to_string(const err_regex& error) {
@@ -117,16 +114,20 @@ R::Query fetch(R::Cursor& cursor, int count, double timeout) {
     int deadline = time(NULL) + int(timeout);
     for (int i = 0; count == -1 || i < count; ++i) {
         // printf("fetching next (%d)\n", i);
-        if (time(NULL) > deadline) break;
+        time_t now = time(NULL);
+        if (now > deadline) break;
 
         try {
-            array.emplace_back(cursor.next());
+            array.emplace_back(cursor.next(deadline - now));
             // printf("got %s\n", write_datum(array[array.size()-1]).c_str());
         } catch (const R::Error &e) {
             if (e.message != "next: No more data") {
                 throw e;    // rethrow
             }
 
+            break;
+        } catch (const R::TimeoutException &e){
+            // printf("fetch timeout\n");
             break;
         }
     }
@@ -261,7 +262,7 @@ bool equal(const R::Datum& got, const R::Datum& expected) {
             if (!regex) break;
             const std::string* str = got.get_string();
             if (!str) break;
-            return match(str->c_str(), regex->c_str());
+            return match(regex->c_str(), str->c_str());
         }
     } while(0);
     const R::Object* got_object = got.get_object();
@@ -335,12 +336,9 @@ R::Datum nil = R::Nil();
 
 R::Array append(R::Array lhs, R::Array rhs) {
     if (lhs.empty()) {
-        lhs = std::move(rhs);
-    } else {
-        lhs.reserve(lhs.size() + rhs.size());
-        std::move(std::begin(rhs), std::end(rhs), std::back_inserter(lhs));
-        rhs.clear();
+        return rhs;
     }
-
+    lhs.reserve(lhs.size() + rhs.size());
+    std::move(std::begin(rhs), std::end(rhs), std::back_inserter(lhs));
     return lhs;
 }

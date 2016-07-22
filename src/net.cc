@@ -26,8 +26,8 @@ class Connection::ReadLock {
 public:
     ReadLock(Connection& conn) : lock(conn.read_lock), conn(&conn) { }
 
-    ssize_t recv_some(char*, size_t, double wait = DEFAULT_WAIT);
-    void recv(char*, size_t, double wait = DEFAULT_WAIT);
+    size_t recv_some(char*, size_t, double wait);
+    void recv(char*, size_t, double wait);
     std::string recv(size_t);
     size_t recv_cstring(char*, size_t);
 
@@ -134,28 +134,31 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
     }
 }
 
-ssize_t Connection::ReadLock::recv_some(char* buf, size_t size, double wait) {
-    fd_set readfds;
-    struct timeval tv;
+size_t Connection::ReadLock::recv_some(char* buf, size_t size, double wait) {
 
-    FD_ZERO(&readfds);
-    FD_SET(conn->guarded_sockfd, &readfds);
+    if(wait != FOREVER){
+        while(true){
+            fd_set readfds;
+            struct timeval tv;
 
-    tv.tv_sec = (int)wait;
-    tv.tv_usec = (int)((wait - (int)wait) * 1000);
-    int rv = select(conn->guarded_sockfd + 1, &readfds, NULL, NULL, &tv);
-    if (rv == -1) {
-        return -1;  // error occurred in select()
-    } else if (rv == 0) {
-        throw TimeoutException();   // recv timed out after 1s
+            FD_ZERO(&readfds);
+            FD_SET(conn->guarded_sockfd, &readfds);
+
+            tv.tv_sec = (int)wait;
+            tv.tv_usec = (int)((wait - (int)wait) / MICROSECOND);
+            int rv = select(conn->guarded_sockfd + 1, &readfds, NULL, NULL, &tv);
+            if (rv == -1) {
+                throw Error::from_errno("select");
+            } else if (rv == 0) {
+                throw TimeoutException();
+            }
+
+            if (FD_ISSET(conn->guarded_sockfd, &readfds)) {
+                break;
+            }
+        }
     }
 
-    // one or both of the descriptors have data
-    if (!FD_ISSET(conn->guarded_sockfd, &readfds)) {
-        return 0;   // no data received on socket
-    }
-
-    // otherwise we're good to go
     ssize_t numbytes = ::recv(conn->guarded_sockfd, buf, size, 0);
     if (numbytes == -1) throw Error::from_errno("recv");
     if (debug_net > 1) fprintf(stderr, "<< %s\n", write_datum(std::string(buf, numbytes)).c_str());
@@ -164,10 +167,7 @@ ssize_t Connection::ReadLock::recv_some(char* buf, size_t size, double wait) {
 
 void Connection::ReadLock::recv(char* buf, size_t size, double wait) {
     while (size) {
-        ssize_t numbytes = recv_some(buf, size, wait);
-        if (numbytes == -1) {
-            throw Error("Lost connection to remote server");
-        }
+        size_t numbytes = recv_some(buf, size, wait);
 
         buf += numbytes;
         size -= numbytes;
@@ -177,7 +177,7 @@ void Connection::ReadLock::recv(char* buf, size_t size, double wait) {
 size_t Connection::ReadLock::recv_cstring(char* buf, size_t max_size){
     size_t size = 0;
     for (; size < max_size; size++) {
-        recv(buf, 1);
+        recv(buf, 1, FOREVER);
         if (*buf == 0) {
             break;
         }
@@ -202,7 +202,7 @@ void Connection::WriteLock::send(const std::string data) {
 
 std::string Connection::ReadLock::recv(size_t size) {
     char buf[size];
-    recv(buf, size);
+    recv(buf, size, FOREVER);
     return buf;
 }
 
@@ -314,7 +314,7 @@ private:
             ++current_;
         } else if (!eof_) {
             count_ += readCount_;
-            readCount_ = reader_->recv_some(buffer_, bufferSize_);
+            readCount_ = reader_->recv_some(buffer_, bufferSize_, FOREVER);
             bufferLast_ = buffer_ + readCount_ - 1;
             current_ = buffer_;
 
@@ -397,10 +397,10 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
             }
         }
     } catch (const TimeoutException &e) {
-        guard.lock();
+        if (!guard.inner_lock){
+            guard.lock();
+        }
         conn->guarded_loop_active = false;
-        guard.unlock();
-
         throw e;
     }
 }
@@ -446,7 +446,7 @@ Error Response::as_error() {
     case RT::WAIT_COMPLETE: err = "unexpected response: WAIT_COMPLETE"; break;
     case RT::SERVER_INFO: err = "unexpected response: SERVER_INFO"; break;
     case RT::CLIENT_ERROR: err = "ReqlDriverError"; break;
-    case RT::COMPILE_ERROR: err = "ReqlServerCompileError"; break;
+    case RT::COMPILE_ERROR: err = "ReqlCompileError"; break;
     case RT::RUNTIME_ERROR:
         switch (error_type) {
         case ET::INTERNAL: err = "ReqlInternalError"; break;
