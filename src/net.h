@@ -50,7 +50,7 @@ public:
     Connection(const Connection&) = delete;
     Connection(Connection&&) = default;
 
-    // Used internally by Query::run
+    // Used internally by Term::run
     Token start_query(const std::string&);
 
     void close();
