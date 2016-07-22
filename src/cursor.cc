@@ -1,34 +1,41 @@
 #include "cursor.h"
+#include "cursor_p.h"
 #include "exceptions.h"
 
 namespace RethinkDB {
 
-Cursor::Cursor(Token&& token_) : token(std::move(token_)) {
+// for type completion, in order to forward declare with unique_ptr
+Cursor::Cursor(Cursor&&) noexcept = default;
+Cursor& Cursor::operator=(Cursor&&) noexcept = default;
+
+CursorPrivate::CursorPrivate(Token&& token_) : token(std::move(token_)) {
     add_response(token.wait_for_response(FOREVER));
     if (!no_more) {
         // token.ask_for_more();
     }
 }
 
-Cursor::Cursor(Token&& token_, Response&& response) : token(std::move(token_)) {
+CursorPrivate::CursorPrivate(Token&& token_, Response&& response) : token(std::move(token_)) {
     add_response(std::move(response));
     if (!no_more) {
         // token.ask_for_more();
     }
 }
 
-Cursor::Cursor(Token&& token_, Datum&& datum) :
+CursorPrivate::CursorPrivate(Token&& token_, Datum&& datum) :
     single(true), no_more(true), buffer(Array{std::move(datum)}), token(std::move(token_)) { }
 
-Cursor::Cursor(Datum&& d) {
+CursorPrivate::CursorPrivate(Datum&& d) {
     buffer.emplace_back(d);
     index = 0;
     single = true;
     no_more = true;
 }
 
+Cursor::Cursor(CursorPrivate *dd) : d(dd) {}
+
 Cursor::~Cursor() {
-    if (!no_more) {
+    if (d && !d->no_more) {
         close();
     }
 }
@@ -37,23 +44,23 @@ Datum& Cursor::next(double wait) const {
     if (!has_next(wait)) {
         throw Error("next: No more data");
     }
-    return buffer[index++];
+    return d->buffer[d->index++];
 }
 
 Datum& Cursor::peek(double wait) const {
     if (!has_next(wait)) {
         throw Error("next: No more data");
     }
-    return buffer[index];
+    return d->buffer[d->index];
 }
 
 void Cursor::each(std::function<void(Datum&&)> f, double wait) const {
     while (has_next(wait)) {
-        f(std::move(buffer[index++]));
+        f(std::move(d->buffer[d->index++]));
     }
 }
 
-void Cursor::convert_single() const {
+void CursorPrivate::convert_single() const {
     if (index != 0) {
         throw Error("Cursor: already consumed");
     }
@@ -68,7 +75,7 @@ void Cursor::convert_single() const {
     single = false;
 }
 
-void Cursor::clear_and_read_all() const {
+void CursorPrivate::clear_and_read_all() const {
     if (single) {
         convert_single();
     }
@@ -82,56 +89,58 @@ void Cursor::clear_and_read_all() const {
 }
 
 Array&& Cursor::to_array() && {
-    clear_and_read_all();
-    return std::move(buffer);
+    d->clear_and_read_all();
+    return std::move(d->buffer);
 }
 
 Array Cursor::to_array() const & {
-    clear_and_read_all();
-    return buffer;
+    d->clear_and_read_all();
+    return d->buffer;
 }
 
 Datum Cursor::to_datum() const & {
-    if (single) {
-        if (index != 0) {
+    if (d->single) {
+        if (d->index != 0) {
             throw Error("to_datum: already consumed");
         }
-        return buffer[0];
-    } else {
-        clear_and_read_all();
-        return buffer;
+        return d->buffer[0];
     }
+
+    d->clear_and_read_all();
+    return d->buffer;
 }
 
 Datum Cursor::to_datum() && {
     Datum ret((Nil()));
-    if (single) {
-        if (index != 0) {
+    if (d->single) {
+        if (d->index != 0) {
             throw Error("to_datum: already consumed");
         }
-        ret = std::move(buffer[0]);
+        ret = std::move(d->buffer[0]);
     } else {
-        clear_and_read_all();
-        ret = std::move(buffer);
+        d->clear_and_read_all();
+        ret = std::move(d->buffer);
     }
+
     return ret;
 }
 
 void Cursor::close() const {
-    token.close();
-    no_more = true;
+    d->token.close();
+    d->no_more = true;
 }
 
 bool Cursor::has_next(double wait) const {
-    if (single) {
-        convert_single();
+    if (d->single) {
+        d->convert_single();
     }
+
     while (true) {
-        if (index >= buffer.size()) {
-            if (no_more) {
+        if (d->index >= d->buffer.size()) {
+            if (d->no_more) {
                 return false;
             }
-            add_response(token.wait_for_response(wait));
+            d->add_response(d->token.wait_for_response(wait));
         } else {
             return true;
         }
@@ -139,10 +148,10 @@ bool Cursor::has_next(double wait) const {
 }
 
 bool Cursor::is_single() const {
-    return single;
+    return d->single;
 }
 
-void Cursor::add_results(Array&& results) const {
+void CursorPrivate::add_results(Array&& results) const {
     if (index >= buffer.size()) {
         buffer = std::move(results);
         index = 0;
@@ -154,7 +163,7 @@ void Cursor::add_results(Array&& results) const {
     }
 }
 
-void Cursor::add_response(Response&& response) const {
+void CursorPrivate::add_response(Response&& response) const {
     using RT = Protocol::Response::ResponseType;
     switch (response.type) {
     case RT::SUCCESS_SEQUENCE:

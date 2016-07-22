@@ -14,6 +14,7 @@
 #include "json.h"
 #include "exceptions.h"
 #include "term.h"
+#include "cursor_p.h"
 
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/encodedstream.h"
@@ -431,11 +432,11 @@ Cursor Connection::start_query(Term *term, OptArgs&& opts) {
     if (it != opts.end()) {
         bool* no_reply = it->second.datum.get_boolean();
         if (no_reply && *no_reply) {
-            return Cursor(std::move(token), Nil());
+            return Cursor(new CursorPrivate(std::move(token), Nil()));
         }
     }
 
-    return Cursor(std::move(token));
+    return Cursor(new CursorPrivate(std::move(token)));
 }
 
 void Connection::WriteLock::send_query(uint64_t token, const std::string& query) {
