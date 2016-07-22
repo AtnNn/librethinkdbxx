@@ -21,7 +21,12 @@
 
 namespace RethinkDB {
 
+// constants
 const int debug_net = 0;
+const uint32_t version_magic =
+    static_cast<uint32_t>(Protocol::VersionDummy::Version::V0_4);
+const uint32_t json_magic =
+    static_cast<uint32_t>(Protocol::VersionDummy::Protocol::JSON);
 
 class Connection::ReadLock {
 public:
