@@ -12,6 +12,7 @@
 #include "net.h"
 #include "json.h"
 #include "exceptions.h"
+#include "term.h"
 
 #include "rapidjson-config.h"
 #include "rapidjson/rapidjson.h"
@@ -368,6 +369,24 @@ Token Connection::start_query(const std::string& query) {
     CacheLock guard(*this);
     guarded_cache[token.token];
     return token;
+}
+
+Cursor Connection::start_query(Term *term, OptArgs&& opts) {
+    Token token = start_query(write_datum(Array{
+        static_cast<double>(Protocol::Query::QueryType::START),
+        term->datum,
+        Term(std::move(opts)).datum
+    }));
+
+    auto it = opts.find("noreply");
+    if (it != opts.end()) {
+        bool* no_reply = it->second.datum.get_boolean();
+        if (no_reply && *no_reply) {
+            return Cursor(std::move(token), Nil());
+        }
+    }
+
+    return Cursor(std::move(token));
 }
 
 void Connection::WriteLock::send_query(uint64_t token, const std::string& query) {

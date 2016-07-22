@@ -352,6 +352,7 @@ public:
 
 private:
     friend class Var;
+    friend class Connection;
 
     template <int _>
     Var mkvar(std::vector<int>& vars);
