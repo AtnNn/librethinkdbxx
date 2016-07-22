@@ -358,7 +358,7 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
 
 Token Connection::start_query(const std::string& query) {
     WriteLock writer(*this);
-    Token token(writer);
+    Token token(writer.new_token(), this);
     writer.send_query(token.token, query);
     CacheLock guard(*this);
     guarded_cache[token.token];
@@ -463,11 +463,42 @@ Protocol::Response::ErrorType runtime_error_type(double t) {
     }
 }
 
-Token::Token(Connection::WriteLock& writer) : conn(writer.conn), token(writer.new_token()) { }
-
 void Connection::close_token(uint64_t token) {
     WriteLock writer(*this);
     writer.close_token(token);
+}
+
+Token::Token(uint64_t token_, Connection *conn_)
+    : token(token_), conn(conn_) {}
+
+Token::Token(Token&& other) : token(other.token), conn(other.conn) {
+    other.token = 0;
+    other.conn = nullptr;
+}
+
+Token::~Token() {
+    close();
+}
+
+Token& Token::operator=(Token&& other) {
+    token = other.token;
+    conn = other.conn;
+    other.conn = nullptr;
+    return *this;
+}
+
+void Token::ask_for_more() const {
+    conn->ask_for_more(token);
+}
+
+Response Token::wait_for_response(double wait) const {
+    return conn->wait_for_response(token, wait);
+}
+
+void Token::close() const {
+    if (conn) {
+        conn->close_token(token);
+    }
 }
 
 }
