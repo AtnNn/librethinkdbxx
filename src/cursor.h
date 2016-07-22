@@ -12,21 +12,16 @@ namespace RethinkDB {
 //    - If it is an array, the cursor represents each element of that array
 //    - Otherwise, to_datum() returns the datum and iteration throws an exception.
 // The cursor can only be iterated over once, it discards data that has already been read.
+class CursorPrivate;
 class Cursor {
 public:
     Cursor() = delete;
-    Cursor(Token&&);
-    Cursor(Token&&, Datum&&);
-    Cursor(Datum&&);
     ~Cursor();
 
-    // movable
-    Cursor(Cursor&&) = default;
-    Cursor& operator=(Cursor&&) = default;
-
-    // not copyable
-    Cursor(const Cursor&) = delete;
-    Cursor& operator=(const Cursor&) = delete;
+    Cursor(Cursor&&);                   // movable
+    Cursor& operator=(Cursor&&);
+    Cursor(const Cursor&);              // not copyable
+    Cursor& operator=(const Cursor&);
 
     // Returned by begin() and end()
     class iterator {
@@ -72,16 +67,10 @@ public:
     iterator end();
 
 private:
-    void add_response(Response&&) const;
-    void add_results(Array&&) const;
-    void clear_and_read_all() const;
-    void convert_single() const;
+    explicit Cursor(CursorPrivate *dd);
+    std::unique_ptr<CursorPrivate> d;
 
-    mutable bool single;
-    mutable bool no_more;
-    mutable size_t index;
-    mutable Array buffer;
-    Token token;
+    friend class Connection;
 };
 
 }
