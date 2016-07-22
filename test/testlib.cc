@@ -15,7 +15,7 @@ std::unique_ptr<R::Connection> conn;
 //     return "<Cursor>";
 // }
 
-std::string to_string(const R::Query& query) {
+std::string to_string(const R::Term& query) {
     return to_string(query.get_datum());
 }
 
@@ -108,7 +108,7 @@ std::string repeat(std::string&& s, int n) {
     return string;
 }
 
-R::Query fetch(R::Cursor& cursor, int count, double timeout) {
+R::Term fetch(R::Cursor& cursor, int count, double timeout) {
     // printf("fetch(..., %d, %lf)\n", count, timeout);
     R::Array array;
     int deadline = time(NULL) + int(timeout);
@@ -327,7 +327,7 @@ int len(const R::Datum& d) {
     return arr->size();
 }
 
-R::Query wait(int n) {
+R::Term wait(int n) {
     sleep(n);
     return R::expr(n);
 }
