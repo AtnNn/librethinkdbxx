@@ -7,7 +7,7 @@
 extern void run_upstream_tests();
 
 void test_json(const char* string, const char* ret = "") {
-    TEST_EQ(R::write_datum(R::read_datum(string)).c_str(), ret[0] ? ret : string);
+    TEST_EQ(R::Datum::from_json(string).as_json().c_str(), ret[0] ? ret : string);
 }
 
 void test_json_parse_print() {

@@ -10,7 +10,7 @@
 #include <cmath>
 #include <cstring>
 
-#include "json.h"
+#include "json_p.h"
 #include "error.h"
 #include "utils.h"
 

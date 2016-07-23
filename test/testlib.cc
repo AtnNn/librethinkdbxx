@@ -22,7 +22,7 @@ std::string to_string(const R::Term& query) {
 }
 
 std::string to_string(const R::Datum& datum) {
-    return write_datum(datum);
+    return datum.as_json();
 }
 
 std::string to_string(const R::Object& object) {
@@ -148,7 +148,7 @@ R::Object bag(R::Datum&& d) {
 std::string string_key(const R::Datum& datum) {
     const std::string* string = datum.get_string();
     if (string) return *string;
-    return write_datum(datum);
+    return datum.as_json();
 }
 
 bool falsey(R::Datum&& datum) {
