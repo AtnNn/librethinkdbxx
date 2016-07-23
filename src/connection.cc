@@ -11,7 +11,7 @@
 
 #include "connection.h"
 #include "connection_p.h"
-#include "json.h"
+#include "json_p.h"
 #include "exceptions.h"
 #include "term.h"
 #include "cursor_p.h"

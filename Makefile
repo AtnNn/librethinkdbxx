@@ -23,7 +23,7 @@ DESTDIR ?=
 SHELL := /bin/bash
 
 modules := connection datum json term cursor types utils
-headers := utils error exceptions types datum json connection cursor term
+headers := utils error exceptions types datum connection cursor term
 
 o_files := $(patsubst %, build/obj/%.o, $(modules))
 d_files := $(patsubst %, build/dep/%.d, $(modules))
