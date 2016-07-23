@@ -2,7 +2,7 @@
 #include <cmath>
 
 #include "datum.h"
-#include "json.h"
+#include "json_p.h"
 #include "utils.h"
 #include "cursor.h"
 
@@ -401,6 +401,17 @@ void Datum::write_json(json_writer_t *writer) const {
         to_raw().write_json(writer);
         break;
     }
+}
+
+std::string Datum::as_json() const {
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    write_json(&writer);
+    return std::string(buffer.GetString(), buffer.GetSize());
+}
+
+Datum Datum::from_json(const std::string& json) {
+    return read_datum(json);
 }
 
 }   // namespace RethinkDB

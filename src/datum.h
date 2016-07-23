@@ -185,6 +185,9 @@ public:
 
     template <class json_writer_t> void write_json(json_writer_t *writer) const;
 
+    std::string as_json() const;
+    static Datum from_json(const std::string&);
+
 private:
     enum class Type {
         ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, BINARY, STRING, TIME
