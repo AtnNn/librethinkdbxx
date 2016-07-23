@@ -1,6 +1,6 @@
 #pragma once
 
-#include "net.h"
+#include "connection.h"
 
 namespace RethinkDB {
 

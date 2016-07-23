@@ -1,26 +1,9 @@
-#pragma once
+#ifndef CONNECTION_P_H
+#define CONNECTION_P_H
 
-#include <string>
-#include <queue>
-#include <mutex>
-#include <memory>
-#include <condition_variable>
-
-#include "protocol_defs.h"
-#include "datum.h"
-#include "error.h"
-
-#define FOREVER (-1)
-#define SECOND 1
-#define MICROSECOND 0.000001
+#include "connection.h"
 
 namespace RethinkDB {
-
-class Term;
-class Token;
-class Connection;
-
-using OptArgs = std::map<std::string, Term>;
 
 // Used internally to convert a raw response type into an enum
 Protocol::Response::ResponseType response_type(double t);
@@ -42,35 +25,15 @@ public:
     Array result;
 };
 
-// A connection to a RethinkDB server
-// It contains:
-//  * A socket
-//  * Read and write locks
-//  * A cache of responses that have not been read by the corresponding Cursor
-class Connection {
+class Token;
+class ConnectionPrivate {
 public:
-    Connection(const std::string& host, int port, const std::string& auth_key);
+    ConnectionPrivate(Connection *conn_)
+        : guarded_next_token(1), guarded_sockfd(0), guarded_loop_active(false), conn(conn_)
+    { }
 
-    Connection(const Connection&) = delete;
-    Connection(Connection&&) = default;
-
-    void close();
-
-private:
     Token start_query(const std::string& query);
-    Cursor start_query(Term *term, OptArgs&& args);
-
     Response wait_for_response(uint64_t, double);
-    void close_token(uint64_t);
-    void ask_for_more(uint64_t);
-
-    friend class SocketReadStream;
-    friend class Token;
-    friend class Term;
-
-    class ReadLock;
-    class WriteLock;
-    class CacheLock;
 
     std::mutex read_lock;
     std::mutex write_lock;
@@ -86,10 +49,54 @@ private:
     uint64_t guarded_next_token;
     int guarded_sockfd;
     bool guarded_loop_active;
+
+    Connection * const conn;
 };
 
-// $doc(connect)
-std::unique_ptr<Connection> connect(std::string host = "localhost", int port = 28015, std::string auth_key = "");
+class CacheLock {
+public:
+    CacheLock(ConnectionPrivate& conn) : inner_lock(conn.cache_lock) { }
+
+    void lock() {
+        inner_lock.lock();
+    }
+
+    void unlock() {
+        inner_lock.unlock();
+    }
+
+    std::unique_lock<std::mutex> inner_lock;
+};
+
+class ReadLock {
+public:
+    ReadLock(ConnectionPrivate& conn) : lock(conn.read_lock), conn(&conn) { }
+
+    size_t recv_some(char*, size_t, double wait);
+    void recv(char*, size_t, double wait);
+    std::string recv(size_t);
+    size_t recv_cstring(char*, size_t);
+
+    Response read_loop(uint64_t, CacheLock&&, double);
+
+    std::lock_guard<std::mutex> lock;
+    ConnectionPrivate* conn;
+};
+
+class WriteLock {
+public:
+    WriteLock(ConnectionPrivate& conn) : lock(conn.write_lock), conn(&conn) { }
+
+    void send(const char*, size_t);
+    void send(std::string);
+    uint64_t new_token();
+    void close();
+    void close_token(uint64_t);
+    void send_query(uint64_t token, const std::string& query);
+
+    std::lock_guard<std::mutex> lock;
+    ConnectionPrivate* conn;
+};
 
 // Each server response is associated with a token, which allows multiplexing streams
 // A token can be used to create a cursor
@@ -107,9 +114,12 @@ public:
 
 private:
     friend class Connection;
+    friend class ConnectionPrivate;
 
     uint64_t token;
     Connection* conn;
 };
 
-}
+}   // namespace RethinkDB
+
+#endif  // CONNECTION_P_H

@@ -1,7 +1,7 @@
 #ifndef CURSOR_P_H
 #define CURSOR_P_H
 
-#include "net.h"
+#include "connection_p.h"
 
 namespace RethinkDB {
 
