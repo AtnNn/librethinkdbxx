@@ -2,7 +2,6 @@
 #include <set>
 
 #include "term.h"
-#include "stream.h"
 #include "json.h"
 
 namespace RethinkDB {

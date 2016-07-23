@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <regex>
+#include <thread>
+#include <chrono>
 
 #include "testlib.h"
 
@@ -328,7 +330,7 @@ int len(const R::Datum& d) {
 }
 
 R::Term wait(int n) {
-    sleep(n);
+    std::this_thread::sleep_for(std::chrono::seconds(n));
     return R::expr(n);
 }
 

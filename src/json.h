@@ -1,7 +1,6 @@
 #pragma once
 
 #include "datum.h"
-#include "stream.h"
 
 namespace rapidjson {
   class CrtAllocator;

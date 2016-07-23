@@ -1,7 +1,7 @@
 #pragma once
 
 #include "datum.h"
-#include "net.h"
+#include "connection.h"
 #include "protocol_defs.h"
 #include "cursor.h"
 
