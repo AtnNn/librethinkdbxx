@@ -33,7 +33,7 @@ std::unique_ptr<Connection> connect(std::string host, int port, std::string auth
 }
 
 Connection::Connection(const std::string& host, int port, const std::string& auth_key)
-    : d(new ConnectionPrivate(this))
+    : d(new ConnectionPrivate)
 {
     struct addrinfo hints;
     memset(&hints, 0, sizeof hints);
