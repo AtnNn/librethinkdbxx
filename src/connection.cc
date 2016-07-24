@@ -326,7 +326,10 @@ Cursor Connection::start_query(Term *term, OptArgs&& opts) {
         }
     }
 
-    return Cursor(new CursorPrivate(token, this));
+    Cursor cursor(new CursorPrivate(token, this));
+    Response response = d->wait_for_response(token, FOREVER);
+    cursor.d->add_response(std::move(response));
+    return cursor;
 }
 
 void Connection::close_query(uint64_t token) {
