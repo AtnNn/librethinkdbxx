@@ -10,12 +10,7 @@ Cursor& Cursor::operator=(Cursor&&) noexcept = default;
 
 CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_)
     : token(token_), conn(conn_)
-{
-    add_response(conn->d->wait_for_response(token, FOREVER));
-    // if (!no_more) {
-    //     // token.ask_for_more();
-    // }
-}
+{ }
 
 CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_, Datum&& datum)
     : single(true), no_more(true), buffer(Array{std::move(datum)}),
