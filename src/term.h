@@ -353,6 +353,7 @@ public:
 private:
     friend class Var;
     friend class Connection;
+    friend struct Query;
 
     template <int _>
     Var mkvar(std::vector<int>& vars);

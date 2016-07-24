@@ -2,6 +2,8 @@
 #define CONNECTION_P_H
 
 #include "connection.h"
+#include "term.h"
+#include "json_p.h"
 
 #include "rapidjson-config.h"
 #include "rapidjson/rapidjson.h"
@@ -9,6 +11,28 @@
 #include "rapidjson/document.h"
 
 namespace RethinkDB {
+
+struct Query {
+    Protocol::Query::QueryType type;
+    uint64_t token;
+    Datum term;
+    OptArgs optArgs;
+
+    std::string serialize() {
+        Array query_arr{static_cast<double>(type)};
+        if (term.is_valid()) query_arr.emplace_back(term);
+        if (!optArgs.empty())
+            query_arr.emplace_back(Term(std::move(optArgs)).datum);
+
+        std::string query_str = write_datum(query_arr);
+        char header[12];
+        memcpy(header, &token, 8);
+        uint32_t size = query_str.size();
+        memcpy(header + 8, &size, 4);
+        query_str.insert(0, header, 12);
+        return query_str;
+    }
+};
 
 // Used internally to convert a raw response type into an enum
 Protocol::Response::ResponseType response_type(double t);
@@ -34,6 +58,7 @@ class ConnectionPrivate {
 public:
     ConnectionPrivate() : guarded_next_token(1) {}
     Response wait_for_response(uint64_t, double);
+    void run_query(Query query, bool no_reply = false);
 
     uint64_t new_token() {
         return guarded_next_token++;
@@ -91,9 +116,6 @@ public:
 
     void send(const char*, size_t);
     void send(std::string);
-    void close();
-    void close_token(uint64_t);
-    void send_query(uint64_t token, const std::string& query);
 
     std::lock_guard<std::mutex> lock;
     ConnectionPrivate* conn;
