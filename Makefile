@@ -14,7 +14,11 @@ else
   CXXFLAGS += -O3 # -flto
 endif
 
-CXXFLAGS += -std=c++11 -I'build/gen' -Wall -pthread -fPIC
+CXXFLAGS += -std=c++11 -I'build/gen' -Isrc -Wall -pthread -fPIC
+
+# asio specific flags
+CXXFLAGS += -Wno-unused-local-typedef
+CXXFLAGS += -DASIO_HAS_MOVE
 
 prefix ?= /usr
 DESTDIR ?=

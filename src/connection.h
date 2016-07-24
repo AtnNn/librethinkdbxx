@@ -35,7 +35,7 @@ public:
     void close();
 
 private:
-    explicit Connection(const std::string& host, int port, const std::string& auth_key);
+    explicit Connection(ConnectionPrivate *dd);
     std::unique_ptr<ConnectionPrivate> d;
 
     Cursor start_query(Term *term, OptArgs&& args);
