@@ -10,26 +10,19 @@ Cursor& Cursor::operator=(Cursor&&) = default;
 Cursor::Cursor(const Cursor&) = delete;
 Cursor& Cursor::operator=(const Cursor&) = delete;
 
-CursorPrivate::CursorPrivate(Token&& token_) : token(std::move(token_)) {
-    add_response(token.wait_for_response(FOREVER));
-    if (!no_more) {
-        // token.ask_for_more();
-    }
+CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_)
+    : token(token_), conn(conn_)
+{
+    add_response(conn->d->wait_for_response(token, FOREVER));
+    // if (!no_more) {
+    //     // token.ask_for_more();
+    // }
 }
 
-CursorPrivate::CursorPrivate(Token&& token_, Response&& response) : token(std::move(token_)) {
-    add_response(std::move(response));
-    if (!no_more) {
-        // token.ask_for_more();
-    }
-}
-
-CursorPrivate::CursorPrivate(Token&& token_, Datum&& datum) :
-    single(true), no_more(true), buffer(Array{std::move(datum)}), token(std::move(token_)) { }
-
-CursorPrivate::CursorPrivate(Datum&& d) {
-    buffer.emplace_back(d);
-}
+CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_, Datum&& datum)
+    : single(true), no_more(true), index(0), buffer(Array{std::move(datum)}),
+      token(token_), conn(conn_)
+{ }
 
 Cursor::Cursor(CursorPrivate *dd) : d(dd) {}
 
@@ -83,7 +76,7 @@ void CursorPrivate::clear_and_read_all() const {
         index = 0;
     }
     while (!no_more) {
-        add_response(token.wait_for_response(FOREVER));
+        add_response(conn->d->wait_for_response(token, FOREVER));
     }
 }
 
@@ -125,7 +118,7 @@ Datum Cursor::to_datum() && {
 }
 
 void Cursor::close() const {
-    d->token.close();
+    d->conn->close_query(d->token);
     d->no_more = true;
 }
 
@@ -139,7 +132,7 @@ bool Cursor::has_next(double wait) const {
             if (d->no_more) {
                 return false;
             }
-            d->add_response(d->token.wait_for_response(wait));
+            d->add_response(d->conn->d->wait_for_response(d->token, wait));
         } else {
             return true;
         }
@@ -169,7 +162,7 @@ void CursorPrivate::add_response(Response&& response) const {
         no_more = true;
         break;
     case RT::SUCCESS_PARTIAL:
-        token.ask_for_more();
+        conn->continue_query(token);
         add_results(std::move(response.result));
         break;
     case RT::SUCCESS_ATOM:

@@ -23,6 +23,8 @@
 
 namespace RethinkDB {
 
+using QueryType = Protocol::Query::QueryType;
+
 // constants
 const int debug_net = 0;
 const uint32_t version_magic =
@@ -101,7 +103,7 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
 }
 
 Connection::~Connection() {
-    close();
+    // close();
 }
 
 size_t ReadLock::recv_some(char* buf, size_t size, double wait) {
@@ -195,15 +197,11 @@ void Connection::close() {
     }
 }
 
-uint64_t WriteLock::new_token() {
-    return conn->guarded_next_token++;
-}
-
 void WriteLock::close_token(uint64_t token) {
     CacheLock guard(*conn);
     const auto& it = conn->guarded_cache.find(token);
     if (it != conn->guarded_cache.end() && !it->second.closed) {
-        send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::STOP))})));
+        send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(QueryType::STOP))})));
     }
 }
 
@@ -317,35 +315,29 @@ Response ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait
     }
 }
 
-Token ConnectionPrivate::start_query(const std::string& query) {
-    WriteLock writer(*this);
-    Token token(writer.new_token(), conn);
-    writer.send_query(token.token, query);
-
-    {
-        CacheLock guard(*this);
-        guarded_cache[token.token];
-    }
-
-    return token;
-}
-
 Cursor Connection::start_query(Term *term, OptArgs&& opts) {
-    Token token = d->start_query(write_datum(Array{
-        static_cast<double>(Protocol::Query::QueryType::START),
+    uint64_t token = d->new_token();
+    std::string query_str = write_datum(Array{
+        static_cast<double>(QueryType::START),
         term->datum,
         Term(std::move(opts)).datum
-    }));
+    });
+
+    // send query
+    {
+        WriteLock writer(*d);
+        writer.send_query(token, query_str);
+    }
 
     auto it = opts.find("noreply");
     if (it != opts.end()) {
         bool* no_reply = it->second.datum.get_boolean();
         if (no_reply && *no_reply) {
-            return Cursor(new CursorPrivate(std::move(token), Nil()));
+            return Cursor(new CursorPrivate(token, this, Nil()));
         }
     }
 
-    return Cursor(new CursorPrivate(std::move(token)));
+    return Cursor(new CursorPrivate(token, this));
 }
 
 void Connection::close_query(uint64_t token) {
@@ -355,7 +347,7 @@ void Connection::close_query(uint64_t token) {
 
 void Connection::continue_query(uint64_t token) {
     WriteLock writer(*d);
-    writer.send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::CONTINUE))})));
+    writer.send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(QueryType::CONTINUE))})));
 }
 
 void WriteLock::send_query(uint64_t token, const std::string& query) {
@@ -450,39 +442,6 @@ Protocol::Response::ErrorType runtime_error_type(double t) {
         return ET::USER;
     default:
         throw Error("Unknown error type");
-    }
-}
-
-Token::Token(uint64_t token_, Connection *conn_)
-    : token(token_), conn(conn_) {}
-
-Token::Token(Token&& other) : token(other.token), conn(other.conn) {
-    other.token = 0;
-    other.conn = nullptr;
-}
-
-Token::~Token() {
-    close();
-}
-
-Token& Token::operator=(Token&& other) {
-    token = other.token;
-    conn = other.conn;
-    other.conn = nullptr;
-    return *this;
-}
-
-void Token::ask_for_more() const {
-    conn->continue_query(token);
-}
-
-Response Token::wait_for_response(double wait) const {
-    return conn->d->wait_for_response(token, wait);
-}
-
-void Token::close() const {
-    if (conn) {
-        conn->close_query(token);
     }
 }
 

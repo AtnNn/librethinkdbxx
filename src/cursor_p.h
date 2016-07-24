@@ -7,10 +7,8 @@ namespace RethinkDB {
 
 class CursorPrivate {
 public:
-    CursorPrivate(Token&&);
-    CursorPrivate(Token&&, Response&&);
-    CursorPrivate(Token&&, Datum&&);
-    CursorPrivate(Datum&&);
+    CursorPrivate(uint64_t token, Connection *conn);
+    CursorPrivate(uint64_t token, Connection *conn, Datum&&);
 
     void add_response(Response&&) const;
     void add_results(Array&&) const;
@@ -21,7 +19,9 @@ public:
     mutable bool no_more = false;
     mutable size_t index = 0;
     mutable Array buffer;
-    Token token;
+
+    uint64_t token;
+    Connection *conn;
 };
 
 }   // namespace RethinkDB

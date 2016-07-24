@@ -42,6 +42,8 @@ private:
     void close_query(uint64_t);
     void continue_query(uint64_t);
 
+    friend class Cursor;
+    friend class CursorPrivate;
     friend class Token;
     friend class Term;
     friend std::unique_ptr<Connection>
