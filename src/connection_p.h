@@ -28,8 +28,8 @@ public:
 class Token;
 class ConnectionPrivate {
 public:
-    ConnectionPrivate(Connection *conn_)
-        : guarded_next_token(1), guarded_sockfd(0), guarded_loop_active(false), conn(conn_)
+    ConnectionPrivate()
+        : guarded_next_token(1), guarded_sockfd(0), guarded_loop_active(false)
     { }
 
     Response wait_for_response(uint64_t, double);
@@ -51,8 +51,6 @@ public:
     uint64_t guarded_next_token;
     int guarded_sockfd;
     bool guarded_loop_active;
-
-    Connection * const conn;
 };
 
 class CacheLock {
