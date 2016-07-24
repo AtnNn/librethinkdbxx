@@ -27,6 +27,7 @@ class Cursor;
 //  * points. lines and polygons -> not implemented
 class Datum {
 public:
+    Datum() : type(Type::INVALID), value() {}
     Datum(Nil) : type(Type::NIL), value() { }
     Datum(bool boolean_) : type(Type::BOOLEAN), value(boolean_) { }
     Datum(double number_) : type(Type::NUMBER), value(number_) { }
@@ -116,8 +117,9 @@ public:
         case Type::ARRAY: return f(value.array, std::forward<A>(args)...); break;
         case Type::BINARY: return f(value.binary, std::forward<A>(args)...); break;
         case Type::TIME: return f(value.time, std::forward<A>(args)...); break;
+        default:
+            throw Error("internal error: no such datum type %d", static_cast<int>(type));
         }
-        throw Error("internal error: no such datum type %d", static_cast<int>(type));
     }
 
     template <class R, class F, class ...A>
@@ -131,8 +133,9 @@ public:
         case Type::ARRAY: return f(std::move(value.array), std::forward<A>(args)...); break;
         case Type::BINARY: return f(std::move(value.binary), std::forward<A>(args)...); break;
         case Type::TIME: return f(std::move(value.time), std::forward<A>(args)...); break;
+        default:
+            throw Error("internal error: no such datum type %d", static_cast<int>(type));
         }
-        throw Error("internal error: no such datum type %d", static_cast<int>(type));
     }
 
     bool is_nil() const;
@@ -188,8 +191,11 @@ public:
     std::string as_json() const;
     static Datum from_json(const std::string&);
 
+    bool is_valid() const { return type != Type::INVALID; }
+
 private:
     enum class Type {
+        INVALID,    // default constructed
         ARRAY, BOOLEAN, NIL, NUMBER, OBJECT, BINARY, STRING, TIME
         // POINT, LINE, POLYGON
     };
@@ -227,7 +233,7 @@ private:
 
         void set(Type type, datum_value&& other) {
             switch(type){
-            case Type::NIL: break;
+            case Type::NIL: case Type::INVALID: break;
             case Type::BOOLEAN: new (this) bool(other.boolean); break;
             case Type::NUMBER: new (this) double(other.number); break;
             case Type::STRING: new (this) std::string(std::move(other.string)); break;
@@ -240,7 +246,7 @@ private:
 
         void set(Type type, const datum_value& other) {
             switch(type){
-            case Type::NIL: break;
+            case Type::NIL: case Type::INVALID: break;
             case Type::BOOLEAN: new (this) bool(other.boolean); break;
             case Type::NUMBER: new (this) double(other.number); break;
             case Type::STRING: new (this) std::string(other.string); break;
@@ -253,6 +259,7 @@ private:
 
         void destroy(Type type) {
             switch(type){
+            case Type::INVALID: break;
             case Type::NIL: break;
             case Type::BOOLEAN: break;
             case Type::NUMBER: break;
