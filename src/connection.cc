@@ -184,24 +184,14 @@ std::string ReadLock::recv(size_t size) {
 }
 
 void Connection::close() {
-    WriteLock writer(*d);
     CacheLock guard(*d);
-
     for (auto& it : d->guarded_cache) {
-        writer.close_token(it.first);
+        close_query(it.first);
     }
 
     int ret = ::close(d->guarded_sockfd);
     if (ret == -1) {
         throw Error::from_errno("close");
-    }
-}
-
-void WriteLock::close_token(uint64_t token) {
-    CacheLock guard(*conn);
-    const auto& it = conn->guarded_cache.find(token);
-    if (it != conn->guarded_cache.end() && !it->second.closed) {
-        send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(QueryType::STOP))})));
     }
 }
 
@@ -315,19 +305,18 @@ Response ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait
     }
 }
 
+void ConnectionPrivate::run_query(Query query, bool no_reply) {
+    if (debug_net > 0) {
+        fprintf(stderr, "[%" PRIu64 "] >> %s\n", query.token, write_datum(query.term).c_str());
+    }
+
+    WriteLock writer(*this);
+    writer.send(query.serialize());
+}
+
 Cursor Connection::start_query(Term *term, OptArgs&& opts) {
     uint64_t token = d->new_token();
-    std::string query_str = write_datum(Array{
-        static_cast<double>(QueryType::START),
-        term->datum,
-        Term(std::move(opts)).datum
-    });
-
-    // send query
-    {
-        WriteLock writer(*d);
-        writer.send_query(token, query_str);
-    }
+    d->run_query(Query{QueryType::START, token, term->datum, std::move(opts)});
 
     auto it = opts.find("noreply");
     if (it != opts.end()) {
@@ -341,23 +330,11 @@ Cursor Connection::start_query(Term *term, OptArgs&& opts) {
 }
 
 void Connection::close_query(uint64_t token) {
-    WriteLock writer(*d);
-    writer.close_token(token);
+    d->run_query(Query{QueryType::STOP, token});
 }
 
 void Connection::continue_query(uint64_t token) {
-    WriteLock writer(*d);
-    writer.send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(QueryType::CONTINUE))})));
-}
-
-void WriteLock::send_query(uint64_t token, const std::string& query) {
-    if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] >> %s\n", token, query.c_str());
-    char buf[12];
-    memcpy(buf, &token, 8);
-    uint32_t size = query.size();
-    memcpy(buf + 8, &size, 4);
-    send(buf, 12);
-    send(query);
+    d->run_query(Query{QueryType::CONTINUE, token});
 }
 
 Error Response::as_error() {
