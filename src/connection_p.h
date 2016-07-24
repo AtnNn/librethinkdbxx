@@ -33,8 +33,11 @@ class Token;
 class ConnectionPrivate {
 public:
     ConnectionPrivate(Connection *conn_) : guarded_next_token(1), conn(conn_) {}
-    Token start_query(const std::string& query);
     Response wait_for_response(uint64_t, double);
+
+    uint64_t new_token() {
+        return guarded_next_token++;
+    }
 
     std::mutex read_lock;
     std::mutex write_lock;
@@ -90,35 +93,12 @@ public:
 
     void send(const char*, size_t);
     void send(std::string);
-    uint64_t new_token();
     void close();
     void close_token(uint64_t);
     void send_query(uint64_t token, const std::string& query);
 
     std::lock_guard<std::mutex> lock;
     ConnectionPrivate* conn;
-};
-
-// Each server response is associated with a token, which allows multiplexing streams
-// A token can be used to create a cursor
-class Token {
-public:
-    Token(uint64_t token = 0, Connection *conn = nullptr);
-    Token(const Token&) = delete;
-    Token(Token&& other);
-    Token& operator=(Token&& other);
-    ~Token();
-
-    void ask_for_more() const;
-    Response wait_for_response(double wait) const;
-    void close() const;
-
-private:
-    friend class Connection;
-    friend class ConnectionPrivate;
-
-    uint64_t token;
-    Connection* conn;
 };
 
 class SocketReadStream {
