@@ -251,7 +251,7 @@ int Datum::compare(const Datum& other) const {
     COMPARE_OTHER(type);
     int c;
     switch (type) {
-    case Type::NIL: break;
+    case Type::NIL: case Type::INVALID: break;
     case Type::BOOLEAN: COMPARE_OTHER(value.boolean); break;
     case Type::NUMBER: COMPARE_OTHER(value.number); break;
     case Type::STRING:
@@ -284,6 +284,8 @@ int Datum::compare(const Datum& other) const {
             COMPARE(c, 0);
         }
         break;
+    default:
+        throw Error("cannot compare invalid datum");
     }
     return 0;
 #undef COMPARE_OTHER
@@ -400,6 +402,8 @@ void Datum::write_json(json_writer_t *writer) const {
     case Type::TIME:
         to_raw().write_json(writer);
         break;
+    default:
+        throw Error("cannot write invalid datum");
     }
 }
 
