@@ -20,6 +20,12 @@ namespace RethinkDB {
 
 using QueryType = Protocol::Query::QueryType;
 
+// TODO: make these non-global
+bool asio_initialized = false;
+asio::io_service io_service;
+asio::io_service::work work(io_service);
+std::thread io_service_thread;
+
 // constants
 const int debug_net = 0;
 const uint32_t version_magic =
@@ -29,11 +35,55 @@ const uint32_t json_magic =
 
 Connection::Connection(Connection&&) noexcept = default;
 std::unique_ptr<Connection> connect(std::string host, int port, std::string auth_key) {
-    return std::unique_ptr<Connection>(new Connection(host, port, auth_key));
+   if (!asio_initialized) {
+        fprintf(stderr, "initializing asio\n");
+        io_service_thread = std::thread([](){ io_service.run(); });
+        asio_initialized = true;
+    }
+
+    // TODO: connect is presently blocking, consider async_connect in the future
+    tcp::socket socket(io_service);
+    tcp::resolver resolver(io_service);
+
+    try {
+        asio::connect(socket, resolver.resolve({ host, std::to_string(port) }));
+
+        // sync write connection header
+        {
+            size_t size = auth_key.size();
+            char buf[12 + size];
+            memcpy(buf, &version_magic, 4);
+            uint32_t n = size;
+            memcpy(buf + 4, &n, 4);
+            memcpy(buf + 8, auth_key.data(), size);
+            memcpy(buf + 8 + size, &json_magic, 4);
+            asio::write(socket, asio::buffer(buf, sizeof(buf)));
+        }
+
+        // sync receive reply
+        {
+            asio::streambuf response;
+            asio::read_until(socket, response, '\0');
+            if (strcmp(asio::buffer_cast<const char*>(response.data()), "SUCCESS")) {
+                try {
+                    socket.close();
+                } catch (...) { }
+
+                throw Error("Server rejected connection with message: %s",
+                            asio::buffer_cast<const char*>(response.data()));
+            }
+        }
+    } catch (std::exception& e) {
+        fprintf(stderr, "connect exception: %s\n", e.what());
+    }
+
+    std::unique_ptr<Connection> conn(
+        new Connection(new ConnectionPrivate(host, port, auth_key, std::move(socket))));
+    return conn;
 }
 
-Connection::Connection(const std::string& host, int port, const std::string& auth_key)
-    : d(new ConnectionPrivate)
+Connection::Connection(ConnectionPrivate *dd)
+    : d(dd)
 {
     struct addrinfo hints;
     memset(&hints, 0, sizeof hints);
@@ -41,9 +91,9 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
     hints.ai_socktype = SOCK_STREAM;
 
     char port_str[16];
-    snprintf(port_str, 16, "%d", port);
+    snprintf(port_str, 16, "%d", d->port);
     struct addrinfo *servinfo;
-    int ret = getaddrinfo(host.c_str(), port_str, &hints, &servinfo);
+    int ret = getaddrinfo(d->host.c_str(), port_str, &hints, &servinfo);
     if (ret) throw Error("getaddrinfo: %s\n", gai_strerror(ret));
 
     struct addrinfo *p;
@@ -70,20 +120,20 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
 
     freeaddrinfo(servinfo);
 
-    WriteLock writer(*d);
     {
-        size_t size = auth_key.size();
+        WriteLock writer(*d);
+        size_t size = d->auth_key.size();
         char buf[12 + size];
         memcpy(buf, &version_magic, 4);
         uint32_t n = size;
         memcpy(buf + 4, &n, 4);
-        memcpy(buf + 8, auth_key.data(), size);
+        memcpy(buf + 8, d->auth_key.data(), size);
         memcpy(buf + 8 + size, &json_magic, 4);
         writer.send(buf, sizeof buf);
     }
 
-    ReadLock reader(*d);
     {
+        ReadLock reader(*d);
         const size_t max_response_length = 1024;
         char buf[max_response_length + 1];
         size_t len = reader.recv_cstring(buf, max_response_length);
@@ -98,7 +148,7 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
 }
 
 Connection::~Connection() {
-    // close();
+    close();
 }
 
 size_t ReadLock::recv_some(char* buf, size_t size, double wait) {
@@ -182,6 +232,12 @@ void Connection::close() {
     if (ret == -1) {
         throw Error::from_errno("close");
     }
+
+    // TODO: this assumes a single connection, ref count multiple connections
+    //       and call this when fully dereffed
+    d->socket.close();
+    io_service.stop();
+    io_service_thread.join();
 }
 
 Response ConnectionPrivate::wait_for_response(uint64_t token_want, double wait) {

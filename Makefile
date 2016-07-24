@@ -14,7 +14,7 @@ else
   CXXFLAGS += -O3 # -flto
 endif
 
-CXXFLAGS += -std=c++11 -I'build/gen' -Wall -pthread -fPIC
+CXXFLAGS += -std=c++11 -I'build/gen' -Isrc -Wall -pthread -fPIC
 
 # RapidJSON specific defines
 CXXFLAGS += "-DRAPIDJSON_HAS_STDSTRING"
@@ -23,6 +23,10 @@ CXXFLAGS += "-DRAPIDJSON_HAS_CXX11_NOEXCEPT"
 CXXFLAGS += "-DRAPIDJSON_HAS_CXX11_TYPETRAITS"
 CXXFLAGS += "-DRAPIDJSON_HAS_CXX11_RANGE_FOR"
 CXXFLAGS += "-DRAPIDJSON_PARSE_DEFAULT_FLAGS=kParseFullPrecisionFlag"
+
+# asio specific flags
+CXXFLAGS += -Wno-unused-local-typedef
+CXXFLAGS += -DASIO_HAS_MOVE
 
 prefix ?= /usr
 DESTDIR ?=

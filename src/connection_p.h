@@ -9,6 +9,16 @@
 #include "rapidjson/encodedstream.h"
 #include "rapidjson/document.h"
 
+#include <thread>
+#include "asio/io_service.hpp"
+#include "asio/ip/tcp.hpp"
+#include "asio/connect.hpp"
+#include "asio/write.hpp"
+#include "asio/read.hpp"
+#include "asio/read_until.hpp"
+#include "asio/streambuf.hpp"
+using asio::ip::tcp;
+
 namespace RethinkDB {
 
 struct Query {
@@ -55,7 +65,10 @@ public:
 class Token;
 class ConnectionPrivate {
 public:
-    ConnectionPrivate() : guarded_next_token(1) {}
+    ConnectionPrivate(std::string host_, int port_, std::string auth_key_, tcp::socket &&socket_)
+        : guarded_next_token(1),
+          host(host_), port(port_), auth_key(auth_key_),
+          socket(std::move(socket_)) {}
     Response wait_for_response(uint64_t, double);
     void run_query(Query query, bool no_reply = false);
 
@@ -77,6 +90,11 @@ public:
     uint64_t guarded_next_token;
     int guarded_sockfd;
     bool guarded_loop_active;
+
+    std::string host;
+    int port;
+    std::string auth_key;
+    tcp::socket socket;
 };
 
 class CacheLock {
