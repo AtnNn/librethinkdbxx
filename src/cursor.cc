@@ -15,22 +15,9 @@ CursorPrivate::CursorPrivate(Token&& token_) : token(std::move(token_)) {
     }
 }
 
-CursorPrivate::CursorPrivate(Token&& token_, Response&& response) : token(std::move(token_)) {
-    add_response(std::move(response));
-    if (!no_more) {
-        // token.ask_for_more();
-    }
-}
-
 CursorPrivate::CursorPrivate(Token&& token_, Datum&& datum) :
     single(true), no_more(true), buffer(Array{std::move(datum)}), token(std::move(token_)) { }
 
-CursorPrivate::CursorPrivate(Datum&& d) {
-    buffer.emplace_back(d);
-    index = 0;
-    single = true;
-    no_more = true;
-}
 
 Cursor::Cursor(CursorPrivate *dd) : d(dd) {}
 

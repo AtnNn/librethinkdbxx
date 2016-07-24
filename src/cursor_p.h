@@ -8,9 +8,7 @@ namespace RethinkDB {
 class CursorPrivate {
 public:
     CursorPrivate(Token&&);
-    CursorPrivate(Token&&, Response&&);
     CursorPrivate(Token&&, Datum&&);
-    CursorPrivate(Datum&&);
 
     void add_response(Response&&) const;
     void add_results(Array&&) const;
