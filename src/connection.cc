@@ -1,14 +1,3 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-
-#include <netdb.h>
-#include <unistd.h>
-
-#include <algorithm>
-#include <cstring>
-#include <cinttypes>
-
 #include "connection.h"
 #include "connection_p.h"
 #include "json_p.h"
@@ -108,9 +97,9 @@ void Connection::close() {
 
     // TODO: this assumes a single connection, ref count multiple connections
     //       and call this when fully dereffed
-    d->socket.close();
     io_service.stop();
     io_service_thread.join();
+    d->socket.close();
 }
 
 void ConnectionPrivate::run_query(Query query, bool no_reply) {
@@ -119,7 +108,6 @@ void ConnectionPrivate::run_query(Query query, bool no_reply) {
         [this, query, query_str](asio::error_code ec, std::size_t bytesWritten) {
             if (ec) {
                 throw Error("write error: %s", ec.message().c_str());
-                return;
             }
         });
 }
@@ -169,11 +157,8 @@ void ConnectionPrivate::read_loop() {
             if (!ec) {
                 uint64_t token;
                 ResponseParser::result_type result;
-
-
                 std::tie(result, std::ignore, token) = parser.parse(
                     current_response, buffer.data(), buffer.data() + bytes_read);
-
 
                 if (result == ResponseParser::good) {
                     if (debug_net > 0) {
@@ -196,6 +181,7 @@ void ConnectionPrivate::read_loop() {
                     fprintf(stderr, "bad response parsing\n");
                 }
             } else {
+                throw Error("read error: %s", ec.message().c_str());
                 // fprintf(stderr, "read_loop ec: %s\n", ec.message().c_str());
                 // fprintf(stderr, "read: %s\n", buffer.data());
                 // cond.notify_all();
@@ -211,7 +197,6 @@ Response ConnectionPrivate::wait_for_response(uint64_t token_want, double wait) 
 
     auto start = std::chrono::steady_clock::now();
     auto deadline = wait * 1000;
-    // fprintf(stderr, "waiting, deadline: %f, wait: %f\n", deadline, wait);
     while (true) {
         if (wait != FOREVER) {
             auto end = std::chrono::steady_clock::now();

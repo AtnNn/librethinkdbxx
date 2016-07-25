@@ -20,10 +20,7 @@ CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_, Datum&& datum)
 Cursor::Cursor(CursorPrivate *dd) : d(dd) {}
 
 Cursor::~Cursor() {
-    // fprintf(stderr, "Cursor::~Cursor()\n");
-    if (d && !d->no_more) {
-        close();
-    }
+    if (d && d->conn) close();
 }
 
 Datum& Cursor::next(double wait) const {
@@ -70,12 +67,8 @@ void CursorPrivate::clear_and_read_all() const {
         index = 0;
     }
     while (!no_more) {
-        // fprintf(stderr, "waiting until no_more\n");
-        // BEGIN_PROFILE;
         add_response(conn->d->wait_for_response(token, FOREVER));
-        // END_PROFILE;
     }
-    // fprintf(stderr, "finished clear_and_read_all\n");
 }
 
 Array&& Cursor::to_array() && {
@@ -96,9 +89,7 @@ Datum Cursor::to_datum() const & {
         return d->buffer[0];
     }
 
-    // fprintf(stderr, "[cursor] waitin in to_datum\n");
     d->clear_and_read_all();
-    // fprintf(stderr, "[cursor] returning the buffer\n");
     return d->buffer;
 }
 
@@ -163,7 +154,6 @@ void CursorPrivate::add_response(Response&& response) const {
         no_more = true;
         break;
     case RT::SUCCESS_PARTIAL:
-        // fprintf(stderr, "[cursor] continuing the query %llu\n", token);
         conn->continue_query(token);
         add_results(std::move(response.result));
         break;
