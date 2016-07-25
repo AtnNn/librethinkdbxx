@@ -23,7 +23,8 @@ Datum read_datum(const rapidjson::Value &json) {
     case rapidjson::kTrueType: return true;
     case rapidjson::kNumberType: return json.GetDouble();
     case rapidjson::kStringType:
-        return Datum(std::string(json.GetString(), json.GetStringLength()));
+        return std::string(json.GetString(), json.GetStringLength());
+
     case rapidjson::kObjectType: {
         Object result;
         for (rapidjson::Value::ConstMemberIterator it = json.MemberBegin();
