@@ -1,9 +1,12 @@
 #ifndef CONNECTION_P_H
 #define CONNECTION_P_H
 
+#include <unordered_map>
+
 #include "connection.h"
 #include "term.h"
 #include "json_p.h"
+#include "utils.h"
 
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/encodedstream.h"
@@ -50,6 +53,7 @@ Protocol::Response::ErrorType runtime_error_type(double t);
 // Contains a response from the server. Use the Cursor class to interact with these responses
 class Response {
 public:
+    Response() {}
     Response(Datum&& datum) :
         type(response_type(std::move(datum).extract_field("t").extract_number())),
         error_type(datum.get_field("e") ?
@@ -62,7 +66,72 @@ public:
     Array result;
 };
 
-class Token;
+class ResponseParser
+{
+public:
+    ResponseParser() : state(reading_token_and_length), desired_length(0) {}
+    void reset() { state = reading_token_and_length; desired_length = 0; }
+    enum result_type { good, bad, indeterminate };
+
+    template <typename InputIterator>
+    std::tuple<result_type, InputIterator, uint64_t> parse(Response& response,
+        InputIterator begin, InputIterator end)
+    {
+        while (begin != end) {
+            result_type result = consume(response, *begin++);
+            if (result == good || result == bad)
+                return std::make_tuple(result, begin, token);
+        }
+
+        return std::make_tuple(indeterminate, begin, token);
+    }
+
+private:
+    result_type consume(Response& response, char input) {
+        buffer.push_back(input);
+
+        if (state == reading_token_and_length) {
+            if (buffer.size() == 12) {
+                memcpy(&token, buffer.data(), 8);
+                uint32_t length;
+                memcpy(&length, buffer.data() + 8, 4);
+
+                buffer.clear();
+                state = reading_datum;
+                desired_length = length;
+            }
+            return indeterminate;
+        }
+
+        if (state == reading_datum) {
+            if (buffer.size() != desired_length) {
+                return indeterminate;
+            }
+
+            rapidjson::Document document;
+            rapidjson::MemoryStream ms(buffer.data(), buffer.size());
+            rapidjson::EncodedInputStream<rapidjson::UTF8<>, rapidjson::MemoryStream> eis(ms);
+            document.ParseStream(eis);
+            response = Response(read_datum(document));
+
+            buffer.clear();
+            state = reading_token_and_length;
+            return good;
+        }
+
+        return indeterminate;
+    }
+
+    enum parser_state {
+        reading_token_and_length,
+        reading_datum
+    } state;
+
+    std::vector<char> buffer;
+    uint64_t token;
+    uint32_t desired_length;
+};
+
 class ConnectionPrivate {
 public:
     ConnectionPrivate(std::string host_, int port_, std::string auth_key_, tcp::socket &&socket_)
@@ -72,12 +141,13 @@ public:
     Response wait_for_response(uint64_t, double);
     void run_query(Query query, bool no_reply = false);
 
+    void start_read_loop();
+    void read_loop();
+
     uint64_t new_token() {
         return guarded_next_token++;
     }
 
-    std::mutex read_lock;
-    std::mutex write_lock;
     std::mutex cache_lock;
 
     struct TokenCache {
@@ -95,6 +165,11 @@ public:
     int port;
     std::string auth_key;
     tcp::socket socket;
+
+    // parsing
+    std::array<char, 8192> buffer;
+    ResponseParser parser;
+    Response current_response;
 };
 
 class CacheLock {
@@ -110,100 +185,6 @@ public:
     }
 
     std::unique_lock<std::mutex> inner_lock;
-};
-
-class ReadLock {
-public:
-    ReadLock(ConnectionPrivate& conn) : lock(conn.read_lock), conn(&conn) { }
-
-    size_t recv_some(char*, size_t, double wait);
-    void recv(char*, size_t, double wait);
-    std::string recv(size_t);
-    size_t recv_cstring(char*, size_t);
-
-    Response read_loop(uint64_t, CacheLock&&, double);
-
-    std::lock_guard<std::mutex> lock;
-    ConnectionPrivate* conn;
-};
-
-class WriteLock {
-public:
-    WriteLock(ConnectionPrivate& conn) : lock(conn.write_lock), conn(&conn) { }
-
-    void send(const char*, size_t);
-    void send(std::string);
-
-    std::lock_guard<std::mutex> lock;
-    ConnectionPrivate* conn;
-};
-
-class SocketReadStream {
-public:
-    typedef char Ch;    //!< Character type (byte).
-
-    //! Constructor.
-    /*!
-        \param fp File pointer opened for read.
-        \param buffer user-supplied buffer.
-        \param bufferSize size of buffer in bytes. Must >=4 bytes.
-    */
-    SocketReadStream(ReadLock* reader, char* buffer, size_t bufferSize)
-        : reader_(reader),
-          buffer_(buffer),
-          bufferSize_(bufferSize),
-          bufferLast_(0),
-          current_(buffer_),
-          readCount_(0),
-          count_(0),
-          eof_(false)
-    {
-        RAPIDJSON_ASSERT(reader_ != 0);
-        RAPIDJSON_ASSERT(bufferSize >= 4);
-        Read();
-    }
-
-    Ch Peek() const { return *current_; }
-    Ch Take() { Ch c = *current_; Read(); return c; }
-    size_t Tell() const { return count_ + static_cast<size_t>(current_ - buffer_); }
-
-    // Not implemented
-    void Put(Ch) { RAPIDJSON_ASSERT(false); }
-    void Flush() { RAPIDJSON_ASSERT(false); }
-    Ch* PutBegin() { RAPIDJSON_ASSERT(false); return 0; }
-    size_t PutEnd(Ch*) { RAPIDJSON_ASSERT(false); return 0; }
-
-    // For encoding detection only.
-    const Ch* Peek4() const {
-        return (current_ + 4 <= bufferLast_) ? current_ : 0;
-    }
-
-private:
-    void Read() {
-        if (current_ < bufferLast_) {
-            ++current_;
-        } else if (!eof_) {
-            count_ += readCount_;
-            readCount_ = reader_->recv_some(buffer_, bufferSize_, FOREVER);
-            bufferLast_ = buffer_ + readCount_ - 1;
-            current_ = buffer_;
-
-            if ((count_ + readCount_) == bufferSize_) {
-                buffer_[readCount_] = '\0';
-                ++bufferLast_;
-                eof_ = true;
-            }
-        }
-    }
-
-    ReadLock* reader_;
-    Ch *buffer_;
-    size_t bufferSize_;
-    Ch *bufferLast_;
-    Ch *current_;
-    size_t readCount_;
-    size_t count_;  //!< Number of characters read
-    bool eof_;
 };
 
 }   // namespace RethinkDB

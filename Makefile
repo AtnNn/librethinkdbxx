@@ -114,6 +114,13 @@ build/test: build/tests/testlib.o build/tests/test.o build/tests/upstream_tests.
 test: build/test
 	build/test
 
+build/bench: build/tests/bench.o build/librethinkdb++.a
+	@$(CXX) -o $@ $(CXXFLAGS) build/librethinkdb++.a $^
+
+.PHONY: bench
+bench: build/bench
+	build/bench
+
 .PHONY: install
 install: build/librethinkdb++.a build/include/rethinkdb.h build/librethinkdb++.so
 	install -m755 -d $(DESTDIR)$(prefix)/lib

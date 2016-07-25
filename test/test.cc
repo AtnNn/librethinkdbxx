@@ -88,7 +88,7 @@ int main() {
         //test_cursor();
         run_upstream_tests();
     } catch (const R::Error& error) {
-        printf("FAILURE: uncaught expception: %s\n", error.message.c_str());
+        printf("FAILURE: uncaught exception: %s\n", error.message.c_str());
         return 1;
     }
     if (!failed) {

@@ -7,6 +7,7 @@ namespace RethinkDB {
 
 class CursorPrivate {
 public:
+    CursorPrivate() = delete;
     CursorPrivate(uint64_t token, Connection *conn);
     CursorPrivate(uint64_t token, Connection *conn, Datum&&);
 
@@ -20,7 +21,7 @@ public:
     mutable size_t index = 0;
     mutable Array buffer;
 
-    uint64_t token;
+    const uint64_t token;
     Connection *conn;
 };
 

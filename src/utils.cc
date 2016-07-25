@@ -1,3 +1,6 @@
+#include <iomanip>
+#include <sstream>
+
 #include "utils.h"
 #include "error.h"
 
@@ -148,6 +151,14 @@ std::string base64_encode(const std::string& in) {
         }
         out.append("\n");
     }
+}
+
+std::string to_hex(const std::string& s, bool upper_case) {
+    std::ostringstream ret;
+    for (std::string::size_type i = 0; i < s.length(); ++i)
+        ret << std::hex << std::setfill('0') << std::setw(2) << (upper_case ? std::uppercase : std::nouppercase) << (int)s[i];
+
+    return ret.str();
 }
 
 }
