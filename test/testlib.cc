@@ -113,7 +113,7 @@ std::string repeat(std::string&& s, int n) {
 R::Term fetch(R::Cursor& cursor, int count, double timeout) {
     // printf("fetch(..., %d, %lf)\n", count, timeout);
     R::Array array;
-    int deadline = time(NULL) + int(timeout);
+    double deadline = time(NULL) + timeout;
     for (int i = 0; count == -1 || i < count; ++i) {
         // printf("fetching next (%d)\n", i);
         time_t now = time(NULL);

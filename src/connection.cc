@@ -121,11 +121,6 @@ void ConnectionPrivate::run_query(Query query, bool no_reply) {
                 throw Error("write error: %s", ec.message().c_str());
                 return;
             }
-
-            // TODO: fix this, we should print outgoing data when the datum is invalid (empty)
-            if (debug_net > 0 && query.term.is_valid()) {
-                fprintf(stderr, "[%" PRIu64 "] >> %s\n", query.token, write_datum(query.term).c_str());
-            }
         });
 }
 
@@ -185,10 +180,7 @@ void ConnectionPrivate::read_loop() {
                         fprintf(stderr, "[%" PRIu64 "] << %s\n", token, write_datum(current_response.result).c_str());
                     }
 
-                    // BEGIN_PROFILE;
                     auto it = guarded_cache.find(token);
-                    // END_PROFILE;
-
                     if (it == guarded_cache.end()) {
                         // drop the response
                     } else if (!it->second.closed) {
@@ -200,6 +192,8 @@ void ConnectionPrivate::read_loop() {
 
                     it->second.cond.notify_one();
 
+                } else if (result == ResponseParser::bad) {
+                    fprintf(stderr, "bad response parsing\n");
                 }
             } else {
                 // fprintf(stderr, "read_loop ec: %s\n", ec.message().c_str());
@@ -215,7 +209,17 @@ Response ConnectionPrivate::wait_for_response(uint64_t token_want, double wait) 
     CacheLock guard(*this);
     ConnectionPrivate::TokenCache& cache = guarded_cache[token_want];
 
+    auto start = std::chrono::steady_clock::now();
+    auto deadline = wait * 1000;
+    // fprintf(stderr, "waiting, deadline: %f, wait: %f\n", deadline, wait);
     while (true) {
+        if (wait != FOREVER) {
+            auto end = std::chrono::steady_clock::now();
+            if (std::chrono::duration<double, std::milli>(end - start).count() > deadline) {
+                throw TimeoutException();
+            }
+        }
+
         if (!cache.responses.empty()) {
             Response response(std::move(cache.responses.front()));
             cache.responses.pop();

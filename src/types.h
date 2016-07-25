@@ -5,8 +5,6 @@
 #include <ctime>
 #include <string>
 
-#include <boost/container/flat_map.hpp>
-
 namespace RethinkDB {
 
 class Datum;
@@ -15,7 +13,7 @@ class Datum;
 struct Nil { };
 
 using Array = std::vector<Datum>;
-using Object = boost::container::flat_map<std::string, Datum>;
+using Object = std::map<std::string, Datum>;
 
 // Represents a string of bytes. Plain std::strings are passed on to the server as utf-8 strings
 struct Binary {

@@ -75,7 +75,7 @@ R::Object arrlen(int n, R::Datum&& datum);
 R::Object arrlen(int n);
 R::Term new_table();
 std::string repeat(std::string&& s, int n);
-R::Term fetch(R::Cursor& cursor, int count = -1, double timeout = 1);
+R::Term fetch(R::Cursor& cursor, int count = -1, double timeout = 0.2);
 R::Object bag(R::Array&& array);
 R::Object bag(R::Datum&& d);
 
