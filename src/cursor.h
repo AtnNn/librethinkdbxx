@@ -15,7 +15,6 @@ namespace RethinkDB {
 class CursorPrivate;
 class Cursor {
 public:
-    Cursor() = delete;
     Cursor(Cursor&&) noexcept;
     Cursor& operator=(Cursor&&) noexcept;
     ~Cursor();
@@ -68,6 +67,7 @@ private:
     std::unique_ptr<CursorPrivate> d;
 
     friend class Connection;
+    friend class ConnectionPrivate;
 };
 
 }

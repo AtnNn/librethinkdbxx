@@ -19,6 +19,7 @@
 namespace RethinkDB {
 
 using QueryType = Protocol::Query::QueryType;
+using ResponseType = Protocol::Response::ResponseType;
 
 // TODO: make these non-global
 bool asio_initialized = false;
@@ -47,6 +48,9 @@ std::unique_ptr<Connection> connect(std::string host, int port, std::string auth
 
     try {
         asio::connect(socket, resolver.resolve({ host, std::to_string(port) }));
+
+        // set socket options
+        socket.set_option(tcp::no_delay(true));
 
         // sync write connection header
         {
@@ -79,147 +83,16 @@ std::unique_ptr<Connection> connect(std::string host, int port, std::string auth
 
     std::unique_ptr<Connection> conn(
         new Connection(new ConnectionPrivate(host, port, auth_key, std::move(socket))));
+    conn->d->start_read_loop();
     return conn;
 }
 
 Connection::Connection(ConnectionPrivate *dd)
     : d(dd)
-{
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-
-    char port_str[16];
-    snprintf(port_str, 16, "%d", d->port);
-    struct addrinfo *servinfo;
-    int ret = getaddrinfo(d->host.c_str(), port_str, &hints, &servinfo);
-    if (ret) throw Error("getaddrinfo: %s\n", gai_strerror(ret));
-
-    struct addrinfo *p;
-    Error error;
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        d->guarded_sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (d->guarded_sockfd == -1) {
-            error = Error::from_errno("socket");
-            continue;
-        }
-
-        if (connect(d->guarded_sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            ::close(d->guarded_sockfd);
-            error = Error::from_errno("connect");
-            continue;
-        }
-
-        break;
-    }
-
-    if (p == NULL) {
-        throw error;
-    }
-
-    freeaddrinfo(servinfo);
-
-    {
-        WriteLock writer(*d);
-        size_t size = d->auth_key.size();
-        char buf[12 + size];
-        memcpy(buf, &version_magic, 4);
-        uint32_t n = size;
-        memcpy(buf + 4, &n, 4);
-        memcpy(buf + 8, d->auth_key.data(), size);
-        memcpy(buf + 8 + size, &json_magic, 4);
-        writer.send(buf, sizeof buf);
-    }
-
-    {
-        ReadLock reader(*d);
-        const size_t max_response_length = 1024;
-        char buf[max_response_length + 1];
-        size_t len = reader.recv_cstring(buf, max_response_length);
-        if (len == max_response_length || strcmp(buf, "SUCCESS")) {
-            buf[len] = 0;
-            try {
-                close();
-            } catch (...) { }
-            throw Error("Server rejected connection with message: %s", buf);
-        }
-    }
-}
+{ }
 
 Connection::~Connection() {
     close();
-}
-
-size_t ReadLock::recv_some(char* buf, size_t size, double wait) {
-    if (wait != FOREVER) {
-        while (true) {
-            fd_set readfds;
-            struct timeval tv;
-
-            FD_ZERO(&readfds);
-            FD_SET(conn->guarded_sockfd, &readfds);
-
-            tv.tv_sec = (int)wait;
-            tv.tv_usec = (int)((wait - (int)wait) / MICROSECOND);
-            int rv = select(conn->guarded_sockfd + 1, &readfds, NULL, NULL, &tv);
-            if (rv == -1) {
-                throw Error::from_errno("select");
-            } else if (rv == 0) {
-                throw TimeoutException();
-            }
-
-            if (FD_ISSET(conn->guarded_sockfd, &readfds)) {
-                break;
-            }
-        }
-    }
-
-    ssize_t numbytes = ::recv(conn->guarded_sockfd, buf, size, 0);
-    if (numbytes == -1) throw Error::from_errno("recv");
-    if (debug_net > 1) fprintf(stderr, "<< %s\n", write_datum(std::string(buf, numbytes)).c_str());
-    return numbytes;
-}
-
-void ReadLock::recv(char* buf, size_t size, double wait) {
-    while (size) {
-        size_t numbytes = recv_some(buf, size, wait);
-
-        buf += numbytes;
-        size -= numbytes;
-    }
-}
-
-size_t ReadLock::recv_cstring(char* buf, size_t max_size){
-    size_t size = 0;
-    for (; size < max_size; size++) {
-        recv(buf, 1, FOREVER);
-        if (*buf == 0) {
-            break;
-        }
-        buf++;
-    }
-    return size;
-}
-
-void WriteLock::send(const char* buf, size_t size) {
-    while (size) {
-        ssize_t numbytes = ::write(conn->guarded_sockfd, buf, size);
-        if (numbytes == -1) throw Error::from_errno("write");
-        if (debug_net > 1) fprintf(stderr, ">> %s\n", write_datum(std::string(buf, numbytes)).c_str());
-        buf += numbytes;
-        size -= numbytes;
-    }
-}
-
-void WriteLock::send(const std::string data) {
-    send(data.data(), data.size());
-}
-
-std::string ReadLock::recv(size_t size) {
-    char buf[size];
-    recv(buf, size, FOREVER);
-    return buf;
 }
 
 void Connection::close() {
@@ -240,112 +113,20 @@ void Connection::close() {
     io_service_thread.join();
 }
 
-Response ConnectionPrivate::wait_for_response(uint64_t token_want, double wait) {
-    CacheLock guard(*this);
-    ConnectionPrivate::TokenCache& cache = guarded_cache[token_want];
-
-    while (true) {
-        if (!cache.responses.empty()) {
-            Response response(std::move(cache.responses.front()));
-            cache.responses.pop();
-            if (cache.closed && cache.responses.empty()) {
-                guarded_cache.erase(token_want);
-            }
-
-            return response;
-        }
-
-        if (cache.closed) {
-            throw Error("Trying to read from a closed token");
-        }
-
-        if (guarded_loop_active) {
-            cache.cond.wait(guard.inner_lock);
-        } else {
-            break;
-        }
-    }
-
-    ReadLock reader(*this);
-    return reader.read_loop(token_want, std::move(guard), wait);
-}
-
-Response ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait) {
-    if (!guard.inner_lock) {
-        guard.lock();
-    }
-    if (conn->guarded_loop_active) {
-        throw Error("Cannot run more than one read loop on the same connection");
-    }
-    conn->guarded_loop_active = true;
-    guard.unlock();
-
-    try {
-        while (true) {
-            char buf[12];
-            recv(buf, 12, wait);
-            uint64_t token_got;
-            memcpy(&token_got, buf, 8);
-            uint32_t length;
-            memcpy(&length, buf + 8, 4);
-
-            char buffer[length];
-            SocketReadStream bis(this, buffer, sizeof(buffer));
-            rapidjson::AutoUTFInputStream<unsigned, SocketReadStream> eis(bis);
-            rapidjson::Document d;
-            d.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis);
-            Datum datum = read_datum(d);
-
-            if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
-
-            Response response(std::move(datum));
-
-            if (token_got == token_want) {
-                guard.lock();
-                if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
-                    auto it = conn->guarded_cache.find(token_got);
-                    if (it != conn->guarded_cache.end()) {
-                        it->second.closed = true;
-                        it->second.cond.notify_all();
-                    }
-                    conn->guarded_cache.erase(it);
-                }
-                conn->guarded_loop_active = false;
-                for (auto& it : conn->guarded_cache) {
-                    it.second.cond.notify_all();
-                }
-                return response;
-            } else {
-                guard.lock();
-                auto it = conn->guarded_cache.find(token_got);
-                if (it == conn->guarded_cache.end()) {
-                    // drop the response
-                } else if (!it->second.closed) {
-                    it->second.responses.emplace(std::move(response));
-                    if (response.type != Protocol::Response::ResponseType::SUCCESS_PARTIAL) {
-                        it->second.closed = true;
-                    }
-                }
-                it->second.cond.notify_all();
-                guard.unlock();
-            }
-        }
-    } catch (const TimeoutException &e) {
-        if (!guard.inner_lock){
-            guard.lock();
-        }
-        conn->guarded_loop_active = false;
-        throw e;
-    }
-}
-
 void ConnectionPrivate::run_query(Query query, bool no_reply) {
-    if (debug_net > 0) {
-        fprintf(stderr, "[%" PRIu64 "] >> %s\n", query.token, write_datum(query.term).c_str());
-    }
+    std::string query_str = query.serialize();
+    asio::async_write(socket, asio::buffer(query_str.data(), query_str.size()),
+        [this, query, query_str](asio::error_code ec, std::size_t bytesWritten) {
+            if (ec) {
+                throw Error("write error: %s", ec.message().c_str());
+                return;
+            }
 
-    WriteLock writer(*this);
-    writer.send(query.serialize());
+            // TODO: fix this, we should print outgoing data when the datum is invalid (empty)
+            if (debug_net > 0 && query.term.is_valid()) {
+                fprintf(stderr, "[%" PRIu64 "] >> %s\n", query.token, write_datum(query.term).c_str());
+            }
+        });
 }
 
 Cursor Connection::start_query(Term *term, OptArgs&& opts) {
@@ -383,6 +164,77 @@ void Connection::continue_query(uint64_t token) {
     d->run_query(Query{QueryType::CONTINUE, token}, true);
 }
 
+void ConnectionPrivate::start_read_loop() {
+    asio::post(io_service, [this]() { read_loop(); });
+}
+
+void ConnectionPrivate::read_loop() {
+    socket.async_read_some(asio::buffer(buffer),
+        [this](std::error_code ec, std::size_t bytes_read) {
+            if (!ec) {
+                uint64_t token;
+                ResponseParser::result_type result;
+
+
+                std::tie(result, std::ignore, token) = parser.parse(
+                    current_response, buffer.data(), buffer.data() + bytes_read);
+
+
+                if (result == ResponseParser::good) {
+                    if (debug_net > 0) {
+                        fprintf(stderr, "[%" PRIu64 "] << %s\n", token, write_datum(current_response.result).c_str());
+                    }
+
+                    // BEGIN_PROFILE;
+                    auto it = guarded_cache.find(token);
+                    // END_PROFILE;
+
+                    if (it == guarded_cache.end()) {
+                        // drop the response
+                    } else if (!it->second.closed) {
+                        it->second.responses.emplace(std::move(current_response));
+                        if (current_response.type != ResponseType::SUCCESS_PARTIAL) {
+                            it->second.closed = true;
+                        }
+                    }
+
+                    it->second.cond.notify_one();
+
+                }
+            } else {
+                // fprintf(stderr, "read_loop ec: %s\n", ec.message().c_str());
+                // fprintf(stderr, "read: %s\n", buffer.data());
+                // cond.notify_all();
+            }
+
+            read_loop();    // pump the loop again
+        });
+}
+
+Response ConnectionPrivate::wait_for_response(uint64_t token_want, double wait) {
+    CacheLock guard(*this);
+    ConnectionPrivate::TokenCache& cache = guarded_cache[token_want];
+
+    while (true) {
+        if (!cache.responses.empty()) {
+            Response response(std::move(cache.responses.front()));
+            cache.responses.pop();
+            if (cache.closed && cache.responses.empty()) {
+                guarded_cache.erase(token_want);
+            }
+
+            return response;
+        }
+
+        if (cache.closed) {
+            throw Error("Trying to read from a closed token");
+        }
+
+        cache.cond.wait_for(guard.inner_lock, std::chrono::milliseconds(100));
+    }
+}
+
+// RESPONSE
 Error Response::as_error() {
     std::string repr;
     if (result.size() == 1) {

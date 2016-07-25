@@ -16,4 +16,16 @@ std::string base64_encode(const std::string&);
 // Does not add a trailing null byte
 size_t utf8_encode(unsigned int, char*);
 
+// for debugging purposes
+std::string to_hex(const std::string& s, bool upper_case = true);
+
+
+#define BEGIN_PROFILE \
+    auto start = std::chrono::steady_clock::now();
+
+#define END_PROFILE \
+    auto end = std::chrono::steady_clock::now(); \
+    auto diff = end - start; \
+    printf("finished in %f ms\n", std::chrono::duration<double, std::milli>(diff).count()); \
+
 }

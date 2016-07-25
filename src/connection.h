@@ -52,6 +52,7 @@ private:
 };
 
 // $doc(connect)
-std::unique_ptr<Connection> connect(std::string host = "localhost", int port = 28015, std::string auth_key = "");
+std::unique_ptr<Connection> connect(std::string host = "localhost",
+    int port = 28015, std::string auth_key = "");
 
 }
