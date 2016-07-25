@@ -76,8 +76,11 @@ public:
 class ResponseParser
 {
 public:
-    ResponseParser() : state(reading_token_and_length), desired_length(0) {}
-    void reset() { state = reading_token_and_length; desired_length = 0; }
+    ResponseParser()
+        : state(read_header), parsed_token(0), parsed_length(0)
+    { }
+
+    void reset() { state = read_header; parsed_token = 0; parsed_length = 0; }
     enum result_type { good, bad, indeterminate };
 
     template <typename InputIterator>
@@ -87,31 +90,30 @@ public:
         while (begin != end) {
             result_type result = consume(response, *begin++);
             if (result == good || result == bad)
-                return std::make_tuple(result, begin, token);
+                return std::make_tuple(result, begin, parsed_token);
         }
 
-        return std::make_tuple(indeterminate, begin, token);
+        return std::make_tuple(indeterminate, begin, parsed_token);
     }
 
 private:
     result_type consume(Response& response, char input) {
         buffer.push_back(input);
 
-        if (state == reading_token_and_length) {
-            if (buffer.size() == 12) {
-                memcpy(&token, buffer.data(), 8);
-                uint32_t length;
-                memcpy(&length, buffer.data() + 8, 4);
-
-                buffer.clear();
-                state = reading_datum;
-                desired_length = length;
+        if (state == read_header) {
+            if (buffer.size() != 12) {
+                return indeterminate;
             }
-            return indeterminate;
+
+            memcpy(&parsed_token, buffer.data(), 8);
+            memcpy(&parsed_length, buffer.data() + 8, 4);
+
+            buffer.clear();
+            state = read_payload;
         }
 
-        if (state == reading_datum) {
-            if (buffer.size() != desired_length) {
+        if (state == read_payload) {
+            if (buffer.size() != parsed_length) {
                 return indeterminate;
             }
 
@@ -122,7 +124,7 @@ private:
             response = Response(read_datum(document));
 
             buffer.clear();
-            state = reading_token_and_length;
+            state = read_header;
             return good;
         }
 
@@ -130,13 +132,13 @@ private:
     }
 
     enum parser_state {
-        reading_token_and_length,
-        reading_datum
+        read_header,
+        read_payload
     } state;
 
     std::vector<char> buffer;
-    uint64_t token;
-    uint32_t desired_length;
+    uint64_t parsed_token;
+    uint32_t parsed_length;
 };
 
 class ConnectionPrivate {
@@ -144,7 +146,9 @@ public:
     ConnectionPrivate(std::string host_, int port_, std::string auth_key_, tcp::socket &&socket_)
         : guarded_next_token(1),
           host(host_), port(port_), auth_key(auth_key_),
-          socket(std::move(socket_)) {}
+          socket(std::move(socket_))
+    { }
+
     Response wait_for_response(uint64_t, double);
     void run_query(Query query, bool no_reply = false);
 
