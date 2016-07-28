@@ -1,15 +1,3 @@
-#include "config.h"
-
-#if defined(USE_LOCALE_H)
-#include <locale.h>
-#elif defined(USE_XLOCALE_H)
-#include <stdlib.h>
-#include <xlocale.h>
-#endif
-
-#include <cmath>
-#include <cstring>
-
 #include "json_p.h"
 #include "error.h"
 #include "utils.h"
