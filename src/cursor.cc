@@ -141,7 +141,6 @@ void CursorPrivate::add_results(Array&& results) const {
         buffer = std::move(results);
         index = 0;
     } else {
-        buffer.reserve(buffer.size() + results.size());
         for (auto& it : results) {
             buffer.emplace_back(std::move(it));
         }
