@@ -39,7 +39,7 @@ private:
     std::unique_ptr<ConnectionPrivate> d;
 
     Cursor start_query(Term *term, OptArgs&& args);
-    void close_query(uint64_t);
+    void stop_query(uint64_t);
     void continue_query(uint64_t);
 
     friend class Cursor;

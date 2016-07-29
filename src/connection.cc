@@ -186,7 +186,7 @@ std::string ReadLock::recv(size_t size) {
 void Connection::close() {
     CacheLock guard(*d);
     for (auto& it : d->guarded_cache) {
-        close_query(it.first);
+        stop_query(it.first);
     }
 
     int ret = ::close(d->guarded_sockfd);
@@ -338,8 +338,11 @@ Cursor Connection::start_query(Term *term, OptArgs&& opts) {
     return cursor;
 }
 
-void Connection::close_query(uint64_t token) {
-    d->run_query(Query{QueryType::STOP, token}, true);
+void Connection::stop_query(uint64_t token) {
+    const auto& it = d->guarded_cache.find(token);
+    if (it != d->guarded_cache.end() && !it->second.closed) {
+        d->run_query(Query{QueryType::STOP, token}, true);
+    }
 }
 
 void Connection::continue_query(uint64_t token) {
