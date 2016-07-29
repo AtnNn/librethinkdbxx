@@ -315,15 +315,21 @@ void ConnectionPrivate::run_query(Query query, bool no_reply) {
 }
 
 Cursor Connection::start_query(Term *term, OptArgs&& opts) {
-    uint64_t token = d->new_token();
-    d->run_query(Query{QueryType::START, token, term->datum, std::move(opts)});
-
+    bool no_reply = false;
     auto it = opts.find("noreply");
     if (it != opts.end()) {
-        bool* no_reply = it->second.datum.get_boolean();
-        if (no_reply && *no_reply) {
-            return Cursor(new CursorPrivate(token, this, Nil()));
-        }
+        no_reply = *(it->second.datum.get_boolean());
+    }
+
+    uint64_t token = d->new_token();
+    {
+        CacheLock guard(*d);
+        d->guarded_cache[token];
+    }
+
+    d->run_query(Query{QueryType::START, token, term->datum, std::move(opts)});
+    if (no_reply) {
+        return Cursor(new CursorPrivate(token, this, Nil()));
     }
 
     Cursor cursor(new CursorPrivate(token, this));
