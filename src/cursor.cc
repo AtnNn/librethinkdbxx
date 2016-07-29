@@ -20,7 +20,7 @@ CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_, Datum&& datum)
 Cursor::Cursor(CursorPrivate *dd) : d(dd) {}
 
 Cursor::~Cursor() {
-    if (d && !d->no_more) {
+    if (d && d->conn) {
         close();
     }
 }
