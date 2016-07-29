@@ -111,7 +111,7 @@ Datum Cursor::to_datum() && {
 }
 
 void Cursor::close() const {
-    d->conn->close_query(d->token);
+    d->conn->stop_query(d->token);
     d->no_more = true;
 }
 
