@@ -317,11 +317,11 @@ Cursor Connection::start_query(Term *term, OptArgs&& opts) {
 }
 
 void Connection::close_query(uint64_t token) {
-    d->run_query(Query{QueryType::STOP, token});
+    d->run_query(Query{QueryType::STOP, token}, true);
 }
 
 void Connection::continue_query(uint64_t token) {
-    d->run_query(Query{QueryType::CONTINUE, token});
+    d->run_query(Query{QueryType::CONTINUE, token}, true);
 }
 
 Error Response::as_error() {
