@@ -14,6 +14,7 @@
 #include "error.h"
 #include "utils.h"
 
+#include "rapidjson-config.h"
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
