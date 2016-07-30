@@ -14,6 +14,7 @@
 #include "json.h"
 #include "exceptions.h"
 
+#include "rapidjson-config.h"
 #include "rapidjson/rapidjson.h"
 #include "rapidjson/encodedstream.h"
 #include "rapidjson/document.h"

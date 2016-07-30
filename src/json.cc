@@ -14,6 +14,7 @@
 #include "error.h"
 #include "utils.h"
 
+#include "rapidjson-config.h"
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
@@ -65,6 +66,8 @@ Datum read_datum(const rapidjson::Value &json) {
     case rapidjson::kNumberType: {
         return Datum(json.GetDouble());
     } break;
+    default:
+        throw Error("invalid rapidjson value");
     }
 }
 

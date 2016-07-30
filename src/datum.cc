@@ -6,6 +6,7 @@
 #include "utils.h"
 #include "cursor.h"
 
+#include "rapidjson-config.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/stringbuffer.h"
 
