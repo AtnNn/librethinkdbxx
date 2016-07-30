@@ -66,6 +66,8 @@ Datum read_datum(const rapidjson::Value &json) {
     case rapidjson::kNumberType: {
         return Datum(json.GetDouble());
     } break;
+    default:
+        throw Error("invalid rapidjson value");
     }
 }
 
