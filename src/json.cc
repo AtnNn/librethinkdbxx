@@ -18,15 +18,12 @@ Datum read_datum(const std::string& json) {
 
 Datum read_datum(const rapidjson::Value &json) {
     switch(json.GetType()) {
-    case rapidjson::kNullType: {
-        return Nil();
-    } break;
-    case rapidjson::kFalseType: {
-        return Datum(false);
-    } break;
-    case rapidjson::kTrueType: {
-        return Datum(true);
-    } break;
+    case rapidjson::kNullType: return Nil();
+    case rapidjson::kFalseType: return false;
+    case rapidjson::kTrueType: return true;
+    case rapidjson::kNumberType: return json.GetDouble();
+    case rapidjson::kStringType:
+        return Datum(std::string(json.GetString(), json.GetStringLength()));
     case rapidjson::kObjectType: {
         Object result;
         for (rapidjson::Value::ConstMemberIterator it = json.MemberBegin();
@@ -38,21 +35,16 @@ Datum read_datum(const rapidjson::Value &json) {
 
         if (result.count("$reql_type$"))
             return Datum(std::move(result)).from_raw();
-        return Datum(std::move(result));
+        return std::move(result);
     } break;
     case rapidjson::kArrayType: {
         Array result;
+        result.reserve(json.Size());
         for (rapidjson::Value::ConstValueIterator it = json.Begin();
              it != json.End(); ++it) {
             result.emplace_back(read_datum(*it));
         }
-        return Datum(std::move(result));
-    } break;
-    case rapidjson::kStringType: {
-        return Datum(std::string(json.GetString(), json.GetStringLength()));
-    } break;
-    case rapidjson::kNumberType: {
-        return Datum(json.GetDouble());
+        return std::move(result);
     } break;
     default:
         throw Error("invalid rapidjson value");
