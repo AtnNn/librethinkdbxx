@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <stack>
 #include <cmath>
+#include <regex>
 
 #include <rethinkdb.h>
 
@@ -73,9 +74,9 @@ R::Object partial(R::Array&& array);
 R::Datum uuid();
 R::Object arrlen(int n, R::Datum&& datum);
 R::Object arrlen(int n);
-R::Query new_table();
+R::Term new_table();
 std::string repeat(std::string&& s, int n);
-R::Query fetch(R::Cursor& cursor, int count = -1, double timeout = 1);
+R::Term fetch(R::Cursor& cursor, int count = -1, double timeout = 1);
 R::Object bag(R::Array&& array);
 R::Object bag(R::Datum&& d);
 
@@ -101,14 +102,14 @@ struct temp_table {
         }
     }
 
-    R::Query table() { return R::table(name); }
+    R::Term table() { return R::table(name); }
     std::string name;
 };
 
 void clean_slate();
 
 // std::string to_string(const R::Cursor&);
-std::string to_string(const R::Query&);
+std::string to_string(const R::Term&);
 std::string to_string(const R::Datum&);
 std::string to_string(const R::Error&);
 std::string to_string(const err_regex&);
@@ -137,25 +138,30 @@ std::string truncate(std::string&&);
 
 template <class T, class U>
 void test_eq(const char* code, const T val, const U expected) {
-    count ++;
-    if (!equal(val, expected)) {
-        failed++;
-        for (auto& it : section) {
-            if (it.second) {
-                printf("%sSection: %s\n", indent(), it.first);
-                it.second = false;
+
+    try {
+        count ++;
+        if (!equal(val, expected)) {
+            failed++;
+            for (auto& it : section) {
+                if (it.second) {
+                    printf("%sSection: %s\n", indent(), it.first);
+                    it.second = false;
+                }
+            }
+            try {
+                printf("%sFAILURE in ‘%s’:\n%s  Expected: ‘%s’\n%s   but got: ‘%s’\n",
+                    indent(), code,
+                    indent(), truncate(to_string(expected)).c_str(),
+                    indent(), truncate(to_string(val)).c_str());
+            } catch (const R::Error& e) {
+                printf("%sFAILURE: Failed to print failure description: %s\n", indent(), e.message.c_str());
+            } catch (...) {
+                printf("%sFAILURE: Failed to print failure description\n", indent());
             }
         }
-        try {
-            printf("%sFAILURE in ‘%s’:\n%s  Expected: ‘%s’\n%s   but got: ‘%s’\n",
-                   indent(), code,
-                   indent(), truncate(to_string(expected)).c_str(),
-                   indent(), truncate(to_string(val)).c_str());
-        } catch (const R::Error& e) {
-            printf("FAILTURE: Failed to print failure description: %s\n", e.message.c_str());
-        } catch (...) {
-            printf("FAILTURE: Failed to print failure description\n");
-        }
+    } catch (const std::regex_error& rx_err) {
+        printf("%sFAILURE: error with regex (likely a buggy regex implementation): %s\n", indent(), rx_err.what());
     }
 }
 
@@ -171,7 +177,7 @@ void test_eq(const char* code, const R::Cursor& val, const U expected) {
 
 int len(const R::Datum&);
 
-R::Query wait(int n);
+R::Term wait(int n);
 
 #define PacificTimeZone() (-7 * 3600)
 #define UTCTimeZone() (0)
@@ -182,7 +188,7 @@ inline R::Cursor maybe_run(R::Cursor& c, R::Connection&, R::OptArgs&& o = {}) {
     return std::move(c);
 }
 
-inline R::Cursor maybe_run(R::Query q, R::Connection& c, R::OptArgs&& o = {}) {
+inline R::Cursor maybe_run(R::Term q, R::Connection& c, R::OptArgs&& o = {}) {
     return q.run(c, std::move(o));
 }
 

@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <regex>
+#include <thread>
+#include <chrono>
 
 #include "testlib.h"
 
@@ -15,12 +17,12 @@ std::unique_ptr<R::Connection> conn;
 //     return "<Cursor>";
 // }
 
-std::string to_string(const R::Query& query) {
+std::string to_string(const R::Term& query) {
     return to_string(query.get_datum());
 }
 
 std::string to_string(const R::Datum& datum) {
-    return write_datum(datum);
+    return datum.as_json();
 }
 
 std::string to_string(const R::Object& object) {
@@ -108,7 +110,7 @@ std::string repeat(std::string&& s, int n) {
     return string;
 }
 
-R::Query fetch(R::Cursor& cursor, int count, double timeout) {
+R::Term fetch(R::Cursor& cursor, int count, double timeout) {
     // printf("fetch(..., %d, %lf)\n", count, timeout);
     R::Array array;
     int deadline = time(NULL) + int(timeout);
@@ -146,7 +148,7 @@ R::Object bag(R::Datum&& d) {
 std::string string_key(const R::Datum& datum) {
     const std::string* string = datum.get_string();
     if (string) return *string;
-    return write_datum(datum);
+    return datum.as_json();
 }
 
 bool falsey(R::Datum&& datum) {
@@ -327,8 +329,8 @@ int len(const R::Datum& d) {
     return arr->size();
 }
 
-R::Query wait(int n) {
-    sleep(n);
+R::Term wait(int n) {
+    std::this_thread::sleep_for(std::chrono::seconds(n));
     return R::expr(n);
 }
 

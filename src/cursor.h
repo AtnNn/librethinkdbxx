@@ -1,6 +1,6 @@
 #pragma once
 
-#include "net.h"
+#include "connection.h"
 
 namespace RethinkDB {
 
@@ -12,15 +12,12 @@ namespace RethinkDB {
 //    - If it is an array, the cursor represents each element of that array
 //    - Otherwise, to_datum() returns the datum and iteration throws an exception.
 // The cursor can only be iterated over once, it discards data that has already been read.
+class CursorPrivate;
 class Cursor {
 public:
-    Cursor(Token&&);
-    Cursor(Token&&, Response&&);
-    Cursor(Cursor&&) = default;
-    Cursor& operator=(Cursor&&) = default;
-    Cursor(Token&&, Datum&&);
-    Cursor(Datum&&);
-
+    Cursor() = delete;
+    Cursor(Cursor&&) noexcept;
+    Cursor& operator=(Cursor&&) noexcept;
     ~Cursor();
 
     // Returned by begin() and end()
@@ -67,16 +64,10 @@ public:
     iterator end();
 
 private:
-    void add_response(Response&&) const;
-    void add_results(Array&&) const;
-    void clear_and_read_all() const;
-    void convert_single() const;
+    explicit Cursor(CursorPrivate *dd);
+    std::unique_ptr<CursorPrivate> d;
 
-    mutable bool single = false;
-    mutable bool no_more = false;
-    mutable size_t index = 0;
-    mutable Array buffer;
-    Token token;
+    friend class Connection;
 };
 
 }
