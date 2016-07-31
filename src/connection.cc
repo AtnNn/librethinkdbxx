@@ -306,10 +306,6 @@ Response ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait
 }
 
 void ConnectionPrivate::run_query(Query query, bool no_reply) {
-    if (debug_net > 0) {
-        fprintf(stderr, "[%" PRIu64 "] >> %s\n", query.token, write_datum(query.term).c_str());
-    }
-
     WriteLock writer(*this);
     writer.send(query.serialize());
 }
