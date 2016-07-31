@@ -9,11 +9,12 @@ Cursor::Cursor(Cursor&&) noexcept = default;
 Cursor& Cursor::operator=(Cursor&&) noexcept = default;
 
 CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_)
-    : token(token_), conn(conn_)
+    : single(false), no_more(false), index(0),
+      token(token_), conn(conn_)
 { }
 
 CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_, Datum&& datum)
-    : single(true), no_more(true), buffer(Array{std::move(datum)}),
+    : single(true), no_more(true), index(0), buffer(Array{std::move(datum)}),
       token(token_), conn(conn_)
 { }
 
