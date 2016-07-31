@@ -32,14 +32,7 @@ const uint32_t version_magic =
 const uint32_t json_magic =
     static_cast<uint32_t>(Protocol::VersionDummy::Protocol::JSON);
 
-Connection::Connection(Connection&&) noexcept = default;
 std::unique_ptr<Connection> connect(std::string host, int port, std::string auth_key) {
-    return std::unique_ptr<Connection>(new Connection(host, port, auth_key));
-}
-
-Connection::Connection(const std::string& host, int port, const std::string& auth_key)
-    : d(new ConnectionPrivate)
-{
     struct addrinfo hints;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -53,15 +46,16 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
 
     struct addrinfo *p;
     Error error;
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        d->guarded_sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (d->guarded_sockfd == -1) {
+    int sockfd;
+    for (p = servinfo; p != NULL; p = p->ai_next) {
+        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (sockfd == -1) {
             error = Error::from_errno("socket");
             continue;
         }
 
-        if (connect(d->guarded_sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            ::close(d->guarded_sockfd);
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            ::close(sockfd);
             error = Error::from_errno("connect");
             continue;
         }
@@ -75,7 +69,8 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
 
     freeaddrinfo(servinfo);
 
-    WriteLock writer(*d);
+    std::unique_ptr<ConnectionPrivate> conn_private(new ConnectionPrivate(sockfd));
+    WriteLock writer(conn_private.get());
     {
         size_t size = auth_key.size();
         char buf[12 + size];
@@ -87,21 +82,22 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
         writer.send(buf, sizeof buf);
     }
 
-    ReadLock reader(*d);
+    ReadLock reader(conn_private.get());
     {
         const size_t max_response_length = 1024;
         char buf[max_response_length + 1];
         size_t len = reader.recv_cstring(buf, max_response_length);
         if (len == max_response_length || strcmp(buf, "SUCCESS")) {
             buf[len] = 0;
-            try {
-                close();
-            } catch (...) { }
+            ::close(sockfd);
             throw Error("Server rejected connection with message: %s", buf);
         }
     }
+
+    return std::unique_ptr<Connection>(new Connection(conn_private.release()));
 }
 
+Connection::Connection(ConnectionPrivate *dd) : d(dd) { }
 Connection::~Connection() {
     // close();
 }
@@ -184,7 +180,7 @@ std::string ReadLock::recv(size_t size) {
 }
 
 void Connection::close() {
-    CacheLock guard(*d);
+    CacheLock guard(d.get());
     for (auto& it : d->guarded_cache) {
         stop_query(it.first);
     }
@@ -196,7 +192,7 @@ void Connection::close() {
 }
 
 Response ConnectionPrivate::wait_for_response(uint64_t token_want, double wait) {
-    CacheLock guard(*this);
+    CacheLock guard(this);
     ConnectionPrivate::TokenCache& cache = guarded_cache[token_want];
 
     while (true) {
@@ -221,7 +217,7 @@ Response ConnectionPrivate::wait_for_response(uint64_t token_want, double wait) 
         }
     }
 
-    ReadLock reader(*this);
+    ReadLock reader(this);
     return reader.read_loop(token_want, std::move(guard), wait);
 }
 
@@ -306,7 +302,7 @@ Response ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait
 }
 
 void ConnectionPrivate::run_query(Query query, bool no_reply) {
-    WriteLock writer(*this);
+    WriteLock writer(this);
     writer.send(query.serialize());
 }
 
@@ -319,7 +315,7 @@ Cursor Connection::start_query(Term *term, OptArgs&& opts) {
 
     uint64_t token = d->new_token();
     {
-        CacheLock guard(*d);
+        CacheLock guard(d.get());
         d->guarded_cache[token];
     }
 

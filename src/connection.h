@@ -29,13 +29,15 @@ class Connection {
 public:
     Connection() = delete;
     Connection(const Connection&) noexcept = delete;
-    Connection(Connection&&) noexcept;
+    Connection(Connection&&) noexcept = delete;
+    Connection& operator=(Connection&&) noexcept = delete;
+    Connection& operator=(const Connection&) noexcept = delete;
     ~Connection();
 
     void close();
 
 private:
-    explicit Connection(const std::string& host, int port, const std::string& auth_key);
+    explicit Connection(ConnectionPrivate *dd);
     std::unique_ptr<ConnectionPrivate> d;
 
     Cursor start_query(Term *term, OptArgs&& args);
