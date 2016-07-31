@@ -12,6 +12,8 @@
 
 namespace RethinkDB {
 
+extern const int debug_net;
+
 struct Query {
     Protocol::Query::QueryType type;
     uint64_t token;
@@ -25,6 +27,10 @@ struct Query {
             query_arr.emplace_back(Term(std::move(optArgs)).datum);
 
         std::string query_str = write_datum(query_arr);
+        if (debug_net > 0) {
+            fprintf(stderr, "[%" PRIu64 "] >> %s\n", token, query_str.c_str());
+        }
+
         char header[12];
         memcpy(header, &token, 8);
         uint32_t size = query_str.size();
