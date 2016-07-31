@@ -62,7 +62,9 @@ public:
 class Token;
 class ConnectionPrivate {
 public:
-    ConnectionPrivate() : guarded_next_token(1) {}
+    ConnectionPrivate(int sockfd)
+        : guarded_next_token(1), guarded_sockfd(sockfd), guarded_loop_active(false) {}
+
     Response wait_for_response(uint64_t, double);
     void run_query(Query query, bool no_reply = false);
 
@@ -88,7 +90,7 @@ public:
 
 class CacheLock {
 public:
-    CacheLock(ConnectionPrivate& conn) : inner_lock(conn.cache_lock) { }
+    CacheLock(ConnectionPrivate* conn) : inner_lock(conn->cache_lock) { }
 
     void lock() {
         inner_lock.lock();
@@ -103,7 +105,7 @@ public:
 
 class ReadLock {
 public:
-    ReadLock(ConnectionPrivate& conn) : lock(conn.read_lock), conn(&conn) { }
+    ReadLock(ConnectionPrivate* conn_) : lock(conn_->read_lock), conn(conn_) { }
 
     size_t recv_some(char*, size_t, double wait);
     void recv(char*, size_t, double wait);
@@ -118,7 +120,7 @@ public:
 
 class WriteLock {
 public:
-    WriteLock(ConnectionPrivate& conn) : lock(conn.write_lock), conn(&conn) { }
+    WriteLock(ConnectionPrivate* conn_) : lock(conn_->write_lock), conn(conn_) { }
 
     void send(const char*, size_t);
     void send(std::string);
