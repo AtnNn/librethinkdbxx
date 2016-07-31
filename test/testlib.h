@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <stack>
 #include <cmath>
+#include <regex>
 
 #include <rethinkdb.h>
 
@@ -137,25 +138,30 @@ std::string truncate(std::string&&);
 
 template <class T, class U>
 void test_eq(const char* code, const T val, const U expected) {
-    count ++;
-    if (!equal(val, expected)) {
-        failed++;
-        for (auto& it : section) {
-            if (it.second) {
-                printf("%sSection: %s\n", indent(), it.first);
-                it.second = false;
+
+    try {
+        count ++;
+        if (!equal(val, expected)) {
+            failed++;
+            for (auto& it : section) {
+                if (it.second) {
+                    printf("%sSection: %s\n", indent(), it.first);
+                    it.second = false;
+                }
+            }
+            try {
+                printf("%sFAILURE in ‘%s’:\n%s  Expected: ‘%s’\n%s   but got: ‘%s’\n",
+                    indent(), code,
+                    indent(), truncate(to_string(expected)).c_str(),
+                    indent(), truncate(to_string(val)).c_str());
+            } catch (const R::Error& e) {
+                printf("%sFAILURE: Failed to print failure description: %s\n", indent(), e.message.c_str());
+            } catch (...) {
+                printf("%sFAILURE: Failed to print failure description\n", indent());
             }
         }
-        try {
-            printf("%sFAILURE in ‘%s’:\n%s  Expected: ‘%s’\n%s   but got: ‘%s’\n",
-                   indent(), code,
-                   indent(), truncate(to_string(expected)).c_str(),
-                   indent(), truncate(to_string(val)).c_str());
-        } catch (const R::Error& e) {
-            printf("FAILTURE: Failed to print failure description: %s\n", e.message.c_str());
-        } catch (...) {
-            printf("FAILTURE: Failed to print failure description\n");
-        }
+    } catch (const std::regex_error& rx_err) {
+        printf("%sFAILURE: error with regex (likely a buggy regex implementation): %s\n", indent(), rx_err.what());
     }
 }
 
