@@ -72,7 +72,9 @@ std::unique_ptr<Connection> connect(std::string host, int port, std::string auth
     return std::unique_ptr<Connection>(new Connection(host, port, auth_key));
 }
 
-Connection::Connection(const std::string& host, int port, const std::string& auth_key) : guarded_next_token(1) {
+Connection::Connection(const std::string& host, int port, const std::string& auth_key)
+    : guarded_next_token(1), guarded_sockfd(0), guarded_loop_active(false)
+{
     struct addrinfo hints;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
