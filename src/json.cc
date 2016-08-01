@@ -28,9 +28,9 @@ Datum read_datum(const rapidjson::Value &json) {
         Object result;
         for (rapidjson::Value::ConstMemberIterator it = json.MemberBegin();
              it != json.MemberEnd(); ++it) {
-            result.emplace(std::make_pair(std::string(it->name.GetString(),
-                                          it->name.GetStringLength()),
-                                          read_datum(it->value)));
+            result.insert(std::make_pair(std::string(it->name.GetString(),
+                                         it->name.GetStringLength()),
+                                         read_datum(it->value)));
         }
 
         if (result.count("$reql_type$"))
@@ -42,7 +42,7 @@ Datum read_datum(const rapidjson::Value &json) {
         result.reserve(json.Size());
         for (rapidjson::Value::ConstValueIterator it = json.Begin();
              it != json.End(); ++it) {
-            result.emplace_back(read_datum(*it));
+            result.push_back(read_datum(*it));
         }
         return std::move(result);
     } break;
