@@ -14,14 +14,19 @@ namespace RethinkDB {
 // The cursor can only be iterated over once, it discards data that has already been read.
 class Cursor {
 public:
+    Cursor() = delete;
     Cursor(Token&&);
-    Cursor(Token&&, Response&&);
-    Cursor(Cursor&&) = default;
-    Cursor& operator=(Cursor&&) = default;
     Cursor(Token&&, Datum&&);
     Cursor(Datum&&);
-
     ~Cursor();
+
+    // movable
+    Cursor(Cursor&&) = default;
+    Cursor& operator=(Cursor&&) = default;
+
+    // not copyable
+    Cursor(const Cursor&) = delete;
+    Cursor& operator=(const Cursor&) = delete;
 
     // Returned by begin() and end()
     class iterator {
@@ -72,9 +77,9 @@ private:
     void clear_and_read_all() const;
     void convert_single() const;
 
-    mutable bool single = false;
-    mutable bool no_more = false;
-    mutable size_t index = 0;
+    mutable bool single;
+    mutable bool no_more;
+    mutable size_t index;
     mutable Array buffer;
     Token token;
 };

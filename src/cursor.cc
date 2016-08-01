@@ -12,24 +12,14 @@ Cursor::Cursor(Token&& token_)
     }
 }
 
-Cursor::Cursor(Token&& token_, Response&& response)
-    : single(false), no_more(false), index(0), token(std::move(token_))
-{
-    add_response(std::move(response));
-    if (!no_more) {
-        // token.ask_for_more();
-    }
-}
-
 Cursor::Cursor(Token&& token_, Datum&& datum)
-    : single(true), no_more(true), buffer(Array{std::move(datum)}), token(std::move(token_))
+    : single(true), no_more(true), index(0), buffer(Array{std::move(datum)}), token(std::move(token_))
 { }
 
-Cursor::Cursor(Datum&& d) {
+Cursor::Cursor(Datum&& d)
+    : single(true), no_more(true), index(0)
+ {
     buffer.emplace_back(d);
-    index = 0;
-    single = true;
-    no_more = true;
 }
 
 Cursor::~Cursor() {
