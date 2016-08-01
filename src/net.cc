@@ -10,7 +10,6 @@
 #include <cinttypes>
 
 #include "net.h"
-#include "stream.h"
 #include "json.h"
 #include "exceptions.h"
 
