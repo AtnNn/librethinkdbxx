@@ -163,7 +163,10 @@ size_t Connection::ReadLock::recv_some(char* buf, size_t size, double wait) {
 
     ssize_t numbytes = ::recv(conn->guarded_sockfd, buf, size, 0);
     if (numbytes == -1) throw Error::from_errno("recv");
-    if (debug_net > 1) fprintf(stderr, "<< %s\n", write_datum(std::string(buf, numbytes)).c_str());
+    if (debug_net > 1) {
+        fprintf(stderr, "<< %s\n", write_datum(std::string(buf, numbytes)).c_str());
+    }
+
     return numbytes;
 }
 
@@ -192,7 +195,10 @@ void Connection::WriteLock::send(const char* buf, size_t size) {
     while (size) {
         ssize_t numbytes = ::write(conn->guarded_sockfd, buf, size);
         if (numbytes == -1) throw Error::from_errno("write");
-        if (debug_net > 1) fprintf(stderr, ">> %s\n", write_datum(std::string(buf, numbytes)).c_str());
+        if (debug_net > 1) {
+            fprintf(stderr, ">> %s\n", write_datum(std::string(buf, numbytes)).c_str());
+        }
+
         buf += numbytes;
         size -= numbytes;
     }
@@ -270,74 +276,6 @@ Response Connection::wait_for_response(uint64_t token_want, double wait) {
     return reader.read_loop(token_want, std::move(guard), wait);
 }
 
-class SocketReadStream {
-public:
-    typedef char Ch;    //!< Character type (byte).
-
-    //! Constructor.
-    /*!
-        \param fp File pointer opened for read.
-        \param buffer user-supplied buffer.
-        \param bufferSize size of buffer in bytes. Must >=4 bytes.
-    */
-    SocketReadStream(Connection::ReadLock* reader, char* buffer, size_t bufferSize)
-        : reader_(reader),
-          buffer_(buffer),
-          bufferSize_(bufferSize),
-          bufferLast_(0),
-          current_(buffer_),
-          readCount_(0),
-          count_(0),
-          eof_(false)
-    {
-        RAPIDJSON_ASSERT(reader_ != 0);
-        RAPIDJSON_ASSERT(bufferSize >= 4);
-        Read();
-    }
-
-    Ch Peek() const { return *current_; }
-    Ch Take() { Ch c = *current_; Read(); return c; }
-    size_t Tell() const { return count_ + static_cast<size_t>(current_ - buffer_); }
-
-    // Not implemented
-    void Put(Ch) { RAPIDJSON_ASSERT(false); }
-    void Flush() { RAPIDJSON_ASSERT(false); }
-    Ch* PutBegin() { RAPIDJSON_ASSERT(false); return 0; }
-    size_t PutEnd(Ch*) { RAPIDJSON_ASSERT(false); return 0; }
-
-    // For encoding detection only.
-    const Ch* Peek4() const {
-        return (current_ + 4 <= bufferLast_) ? current_ : 0;
-    }
-
-private:
-    void Read() {
-        if (current_ < bufferLast_) {
-            ++current_;
-        } else if (!eof_) {
-            count_ += readCount_;
-            readCount_ = reader_->recv_some(buffer_, bufferSize_, FOREVER);
-            bufferLast_ = buffer_ + readCount_ - 1;
-            current_ = buffer_;
-
-            if ((count_ + readCount_) == bufferSize_) {
-                buffer_[readCount_] = '\0';
-                ++bufferLast_;
-                eof_ = true;
-            }
-        }
-    }
-
-    Connection::ReadLock* reader_;
-    Ch *buffer_;
-    size_t bufferSize_;
-    Ch *bufferLast_;
-    Ch *current_;
-    size_t readCount_;
-    size_t count_;  //!< Number of characters read
-    bool eof_;
-};
-
 Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait) {
     if (!guard.inner_lock) {
         guard.lock();
@@ -351,6 +289,8 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
     try {
         while (true) {
             char buf[12];
+            bzero(buf, sizeof(buf));
+
             recv(buf, 12, wait);
             uint64_t token_got;
             memcpy(&token_got, buf, 8);
@@ -358,13 +298,25 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
             memcpy(&length, buf + 8, 4);
 
             char buffer[length];
-            SocketReadStream bis(this, buffer, sizeof(buffer));
-            rapidjson::AutoUTFInputStream<unsigned, SocketReadStream> eis(bis);
-            rapidjson::Document d;
-            d.ParseStream<0, rapidjson::AutoUTF<unsigned> >(eis);
-            Datum datum = read_datum(d);
+            bzero(buffer, sizeof(buffer));
 
-            if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
+            recv_some(buffer, sizeof(buffer), wait);
+            buffer[length] = '\0';
+
+            rapidjson::Document json;
+            json.ParseInsitu(buffer);
+            if (json.HasParseError()) {
+                fprintf(stderr, "json parse error, code: %d, position: %d\n",
+                    (int)json.GetParseError(), (int)json.GetErrorOffset());
+            } else if (json.IsNull()) {
+                fprintf(stderr, "null value, read: %s\n", buffer);
+            }
+
+            Datum datum = read_datum(json);
+
+            if (debug_net > 0) {
+                fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
+            }
 
             Response response(std::move(datum));
 
@@ -417,7 +369,10 @@ Token Connection::start_query(const std::string& query) {
 }
 
 void Connection::WriteLock::send_query(uint64_t token, const std::string& query) {
-    if (debug_net > 0) fprintf(stderr, "[%" PRIu64 "] >> %s\n", token, query.c_str());
+    if (debug_net > 0) {
+        fprintf(stderr, "[%" PRIu64 "] >> %s\n", token, query.c_str());
+    }
+
     char buf[12];
     memcpy(buf, &token, 8);
     uint32_t size = query.size();

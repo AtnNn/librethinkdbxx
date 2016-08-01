@@ -26,7 +26,8 @@ Protocol::Response::ErrorType runtime_error_type(double t);
 // Contains a response from the server. Use the Cursor class to interact with these responses
 class Response {
 public:
-    Response(Datum&& datum) :
+    Response() = delete;
+    explicit Response(Datum&& datum) :
         type(response_type(std::move(datum).extract_field("t").extract_number())),
         error_type(datum.get_field("e") ?
                    runtime_error_type(std::move(datum).extract_field("e").extract_number()) :
@@ -94,17 +95,22 @@ std::unique_ptr<Connection> connect(std::string host = "localhost", int port = 2
 class Token {
 public:
     Token(Connection::WriteLock&);
-    Token() : conn(nullptr) { }
+    Token() : conn(nullptr), token(0) { }
 
     Token(const Token&) = delete;
+    Token& operator=(const Token&) = delete;
+
     Token& operator=(Token&& other){
         token = other.token;
         conn = other.conn;
-        other.conn = NULL;
+        other.conn = nullptr;
+        other.token = 0;
         return *this;
     }
+
     Token(Token&& other) : conn(other.conn), token(other.token) {
-        other.conn = NULL;
+        other.conn = nullptr;
+        other.token = 0;
     }
 
     void ask_for_more() const {
