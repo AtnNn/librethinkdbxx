@@ -3,22 +3,27 @@
 
 namespace RethinkDB {
 
-Cursor::Cursor(Token&& token_) : token(std::move(token_)) {
+Cursor::Cursor(Token&& token_)
+    : single(false), no_more(false), index(0), token(std::move(token_))
+{
     add_response(token.wait_for_response(FOREVER));
     if (!no_more) {
         // token.ask_for_more();
     }
 }
 
-Cursor::Cursor(Token&& token_, Response&& response) : token(std::move(token_)) {
+Cursor::Cursor(Token&& token_, Response&& response)
+    : single(false), no_more(false), index(0), token(std::move(token_))
+{
     add_response(std::move(response));
     if (!no_more) {
         // token.ask_for_more();
     }
 }
 
-Cursor::Cursor(Token&& token_, Datum&& datum) :
-    single(true), no_more(true), buffer(Array{std::move(datum)}), token(std::move(token_)) { }
+Cursor::Cursor(Token&& token_, Datum&& datum)
+    : single(true), no_more(true), buffer(Array{std::move(datum)}), token(std::move(token_))
+{ }
 
 Cursor::Cursor(Datum&& d) {
     buffer.emplace_back(d);
