@@ -290,17 +290,15 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
         while (true) {
             char buf[12];
             bzero(buf, sizeof(buf));
-
             recv(buf, 12, wait);
             uint64_t token_got;
             memcpy(&token_got, buf, 8);
             uint32_t length;
             memcpy(&length, buf + 8, 4);
 
-            char buffer[length];
+            char buffer[length + 1];
             bzero(buffer, sizeof(buffer));
-
-            recv_some(buffer, sizeof(buffer), wait);
+            recv(buffer, length, wait);
             buffer[length] = '\0';
 
             rapidjson::Document json;
@@ -313,7 +311,6 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
             }
 
             Datum datum = read_datum(json);
-
             if (debug_net > 0) {
                 fprintf(stderr, "[%" PRIu64 "] << %s\n", token_got, write_datum(datum).c_str());
             }
