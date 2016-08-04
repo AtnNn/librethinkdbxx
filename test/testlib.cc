@@ -65,7 +65,16 @@ std::string to_string(const err& error) {
 }
 
 bool equal(const R::Error& a, const err& b) {
-    return b.trim_message(a.message) == (b.convert_type() + ": " + b.message);
+    // @TODO: I think the proper solution to this proble is to in fact create
+    //        a hierarchy of exception types. This would not only simplify these
+    //        error cases, but could be of great use to the user.
+    std::string error_type = b.convert_type();
+    if (error_type == "ReqlServerCompileError" &&
+        a.message.find("ReqlCompileError") != std::string::npos) {
+        return true;
+    }
+
+    return b.trim_message(a.message) == (error_type + ": " + b.message);
 }
 
 bool match(const char* pattern, const char* string) {
