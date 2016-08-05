@@ -161,7 +161,7 @@ void test_eq(const char* code, const T val, const U expected) {
             }
         }
     } catch (const std::regex_error& rx_err) {
-        printf("%SKIP: error with regex (likely a buggy regex implementation): %s\n", indent(), rx_err.what());
+        printf("%sSKIP: error with regex (likely a buggy regex implementation): %s\n", indent(), rx_err.what());
     }
 }
 
