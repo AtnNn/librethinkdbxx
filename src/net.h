@@ -12,7 +12,7 @@
 
 #define FOREVER (-1)
 #define SECOND 1
-#define MICROSECOND 0.0000001
+#define MICROSECOND 0.000001
 
 namespace RethinkDB {
 
