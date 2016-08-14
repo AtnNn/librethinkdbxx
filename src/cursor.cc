@@ -7,8 +7,6 @@ namespace RethinkDB {
 // for type completion, in order to forward declare with unique_ptr
 Cursor::Cursor(Cursor&&) = default;
 Cursor& Cursor::operator=(Cursor&&) = default;
-Cursor::Cursor(const Cursor&) = delete;
-Cursor& Cursor::operator=(const Cursor&) = delete;
 
 CursorPrivate::CursorPrivate(uint64_t token_, Connection *conn_)
     : single(false), no_more(false), index(0),

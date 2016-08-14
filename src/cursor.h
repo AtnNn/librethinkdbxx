@@ -20,8 +20,8 @@ public:
 
     Cursor(Cursor&&);                   // movable
     Cursor& operator=(Cursor&&);
-    Cursor(const Cursor&);              // not copyable
-    Cursor& operator=(const Cursor&);
+    Cursor(const Cursor&) = delete;     // not copyable
+    Cursor& operator=(const Cursor&) = delete;
 
     // Returned by begin() and end()
     class iterator {
