@@ -2,7 +2,7 @@
 #include <set>
 
 #include "term.h"
-#include "json.h"
+#include "json_p.h"
 
 namespace RethinkDB {
 
@@ -55,17 +55,7 @@ Cursor Term::run(Connection& conn, OptArgs&& opts) {
         throw Error("run: term has free variables");
     }
 
-    Token token =
-        conn.start_query(write_datum(Array{static_cast<double>(Protocol::Query::QueryType::START), datum, Term(std::move(opts)).datum}));
-    auto it = opts.find("noreply");
-    if (it != opts.end()) {
-        bool* no_reply = it->second.datum.get_boolean();
-        if (no_reply && *no_reply) {
-            return Cursor(std::move(token), Nil());
-        }
-    }
-
-    return Cursor(std::move(token));
+    return conn.start_query(this, std::move(opts));
 }
 
 struct {

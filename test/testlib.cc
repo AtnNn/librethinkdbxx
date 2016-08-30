@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <regex>
+#include <thread>
+#include <chrono>
 #include <unistd.h>
 
 #include "testlib.h"
@@ -21,7 +23,7 @@ std::string to_string(const R::Term& query) {
 }
 
 std::string to_string(const R::Datum& datum) {
-    return write_datum(datum);
+    return datum.as_json();
 }
 
 std::string to_string(const R::Object& object) {
@@ -156,7 +158,7 @@ R::Object bag(R::Datum&& d) {
 std::string string_key(const R::Datum& datum) {
     const std::string* string = datum.get_string();
     if (string) return *string;
-    return write_datum(datum);
+    return datum.as_json();
 }
 
 bool falsey(R::Datum&& datum) {
@@ -338,7 +340,7 @@ int len(const R::Datum& d) {
 }
 
 R::Term wait(int n) {
-    sleep(n);
+    std::this_thread::sleep_for(std::chrono::seconds(n));
     return R::expr(n);
 }
 

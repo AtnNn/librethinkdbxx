@@ -9,9 +9,12 @@
 #include <cstring>
 #include <cinttypes>
 
-#include "net.h"
-#include "json.h"
+#include "connection.h"
+#include "connection_p.h"
+#include "json_p.h"
 #include "exceptions.h"
+#include "term.h"
+#include "cursor_p.h"
 
 #include "rapidjson-config.h"
 #include "rapidjson/rapidjson.h"
@@ -20,60 +23,16 @@
 
 namespace RethinkDB {
 
+using QueryType = Protocol::Query::QueryType;
+
+// constants
 const int debug_net = 0;
-
-class Connection::ReadLock {
-public:
-    ReadLock(Connection& conn) : lock(conn.read_lock), conn(&conn) { }
-
-    size_t recv_some(char*, size_t, double wait);
-    void recv(char*, size_t, double wait);
-    std::string recv(size_t);
-    size_t recv_cstring(char*, size_t);
-
-    Response read_loop(uint64_t, CacheLock&&, double);
-
-    std::lock_guard<std::mutex> lock;
-    Connection* conn;
-};
-
-class Connection::WriteLock {
-public:
-    WriteLock(Connection& conn) : lock(conn.write_lock), conn(&conn) { }
-
-    void send(const char*, size_t);
-    void send(std::string);
-    uint64_t new_token();
-    void close();
-    void close_token(uint64_t);
-    void send_query(uint64_t token, const std::string& query);
-
-    std::lock_guard<std::mutex> lock;
-    Connection* conn;
-};
-
-class Connection::CacheLock {
-public:
-    CacheLock(Connection& conn) : inner_lock(conn.cache_lock) { }
-
-    void lock() {
-        inner_lock.lock();
-    }
-
-    void unlock() {
-        inner_lock.unlock();
-    }
-
-    std::unique_lock<std::mutex> inner_lock;
-};
+const uint32_t version_magic =
+    static_cast<uint32_t>(Protocol::VersionDummy::Version::V0_4);
+const uint32_t json_magic =
+    static_cast<uint32_t>(Protocol::VersionDummy::Protocol::JSON);
 
 std::unique_ptr<Connection> connect(std::string host, int port, std::string auth_key) {
-    return std::unique_ptr<Connection>(new Connection(host, port, auth_key));
-}
-
-Connection::Connection(const std::string& host, int port, const std::string& auth_key)
-    : guarded_next_token(1), guarded_sockfd(0), guarded_loop_active(false)
-{
     struct addrinfo hints;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -87,15 +46,16 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
 
     struct addrinfo *p;
     Error error;
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        guarded_sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (guarded_sockfd == -1) {
+    int sockfd;
+    for (p = servinfo; p != NULL; p = p->ai_next) {
+        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (sockfd == -1) {
             error = Error::from_errno("socket");
             continue;
         }
 
-        if (connect(guarded_sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            ::close(guarded_sockfd);
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            ::close(sockfd);
             error = Error::from_errno("connect");
             continue;
         }
@@ -109,8 +69,8 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
 
     freeaddrinfo(servinfo);
 
-    WriteLock writer(*this);
-
+    std::unique_ptr<ConnectionPrivate> conn_private(new ConnectionPrivate(sockfd));
+    WriteLock writer(conn_private.get());
     {
         size_t size = auth_key.size();
         char buf[12 + size];
@@ -122,24 +82,29 @@ Connection::Connection(const std::string& host, int port, const std::string& aut
         writer.send(buf, sizeof buf);
     }
 
-    ReadLock reader(*this);
-
-    const size_t max_response_length = 1024;
-    char buf[max_response_length + 1];
-    size_t len = reader.recv_cstring(buf, max_response_length);
-    if (len == max_response_length || strcmp(buf, "SUCCESS")) {
-        buf[len] = 0;
-        try {
-            close();
-        } catch (...) { }
-        throw Error("Server rejected connection with message: %s", buf);
+    ReadLock reader(conn_private.get());
+    {
+        const size_t max_response_length = 1024;
+        char buf[max_response_length + 1];
+        size_t len = reader.recv_cstring(buf, max_response_length);
+        if (len == max_response_length || strcmp(buf, "SUCCESS")) {
+            buf[len] = 0;
+            ::close(sockfd);
+            throw Error("Server rejected connection with message: %s", buf);
+        }
     }
+
+    return std::unique_ptr<Connection>(new Connection(conn_private.release()));
 }
 
-size_t Connection::ReadLock::recv_some(char* buf, size_t size, double wait) {
+Connection::Connection(ConnectionPrivate *dd) : d(dd) { }
+Connection::~Connection() {
+    // close();
+}
 
-    if(wait != FOREVER){
-        while(true){
+size_t ReadLock::recv_some(char* buf, size_t size, double wait) {
+    if (wait != FOREVER) {
+        while (true) {
             fd_set readfds;
             struct timeval tv;
 
@@ -170,7 +135,7 @@ size_t Connection::ReadLock::recv_some(char* buf, size_t size, double wait) {
     return numbytes;
 }
 
-void Connection::ReadLock::recv(char* buf, size_t size, double wait) {
+void ReadLock::recv(char* buf, size_t size, double wait) {
     while (size) {
         size_t numbytes = recv_some(buf, size, wait);
 
@@ -179,7 +144,7 @@ void Connection::ReadLock::recv(char* buf, size_t size, double wait) {
     }
 }
 
-size_t Connection::ReadLock::recv_cstring(char* buf, size_t max_size){
+size_t ReadLock::recv_cstring(char* buf, size_t max_size){
     size_t size = 0;
     for (; size < max_size; size++) {
         recv(buf, 1, FOREVER);
@@ -191,7 +156,7 @@ size_t Connection::ReadLock::recv_cstring(char* buf, size_t max_size){
     return size;
 }
 
-void Connection::WriteLock::send(const char* buf, size_t size) {
+void WriteLock::send(const char* buf, size_t size) {
     while (size) {
         ssize_t numbytes = ::write(conn->guarded_sockfd, buf, size);
         if (numbytes == -1) throw Error::from_errno("write");
@@ -204,51 +169,31 @@ void Connection::WriteLock::send(const char* buf, size_t size) {
     }
 }
 
-void Connection::WriteLock::send(const std::string data) {
+void WriteLock::send(const std::string data) {
     send(data.data(), data.size());
 }
 
-std::string Connection::ReadLock::recv(size_t size) {
+std::string ReadLock::recv(size_t size) {
     char buf[size];
     recv(buf, size, FOREVER);
     return buf;
 }
 
 void Connection::close() {
-    Connection::WriteLock writer(*this);
-    CacheLock guard(*this);
-
-    for (auto& it : guarded_cache) {
-        writer.close_token(it.first);
+    CacheLock guard(d.get());
+    for (auto& it : d->guarded_cache) {
+        stop_query(it.first);
     }
 
-    int ret = ::close(guarded_sockfd);
+    int ret = ::close(d->guarded_sockfd);
     if (ret == -1) {
         throw Error::from_errno("close");
     }
 }
 
-uint64_t Connection::WriteLock::new_token() {
-    return conn->guarded_next_token++;
-}
-
-void Connection::WriteLock::close_token(uint64_t token) {
-    CacheLock guard(*conn);
-    const auto& it = conn->guarded_cache.find(token);
-    if (it != conn->guarded_cache.end() && !it->second.closed) {
-        send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::STOP))})));
-    }
-}
-
-void Connection::ask_for_more(uint64_t token) {
-    WriteLock writer(*this);
-    writer.send_query(token, write_datum(Datum(Array{Datum(static_cast<int>(Protocol::Query::QueryType::CONTINUE))})));
-}
-
-Response Connection::wait_for_response(uint64_t token_want, double wait) {
-    CacheLock guard(*this);
-
-    TokenCache& cache = guarded_cache[token_want];
+Response ConnectionPrivate::wait_for_response(uint64_t token_want, double wait) {
+    CacheLock guard(this);
+    ConnectionPrivate::TokenCache& cache = guarded_cache[token_want];
 
     while (true) {
         if (!cache.responses.empty()) {
@@ -272,11 +217,11 @@ Response Connection::wait_for_response(uint64_t token_want, double wait) {
         }
     }
 
-    ReadLock reader(*this);
+    ReadLock reader(this);
     return reader.read_loop(token_want, std::move(guard), wait);
 }
 
-Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait) {
+Response ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait) {
     if (!guard.inner_lock) {
         guard.lock();
     }
@@ -356,26 +301,44 @@ Response Connection::ReadLock::read_loop(uint64_t token_want, CacheLock&& guard,
     }
 }
 
-Token Connection::start_query(const std::string& query) {
-    WriteLock writer(*this);
-    Token token(writer);
-    writer.send_query(token.token, query);
-    CacheLock guard(*this);
-    guarded_cache[token.token];
-    return token;
+void ConnectionPrivate::run_query(Query query, bool no_reply) {
+    WriteLock writer(this);
+    writer.send(query.serialize());
 }
 
-void Connection::WriteLock::send_query(uint64_t token, const std::string& query) {
-    if (debug_net > 0) {
-        fprintf(stderr, "[%" PRIu64 "] >> %s\n", token, query.c_str());
+Cursor Connection::start_query(Term *term, OptArgs&& opts) {
+    bool no_reply = false;
+    auto it = opts.find("noreply");
+    if (it != opts.end()) {
+        no_reply = *(it->second.datum.get_boolean());
     }
 
-    char buf[12];
-    memcpy(buf, &token, 8);
-    uint32_t size = query.size();
-    memcpy(buf + 8, &size, 4);
-    send(buf, 12);
-    send(query);
+    uint64_t token = d->new_token();
+    {
+        CacheLock guard(d.get());
+        d->guarded_cache[token];
+    }
+
+    d->run_query(Query{QueryType::START, token, term->datum, std::move(opts)});
+    if (no_reply) {
+        return Cursor(new CursorPrivate(token, this, Nil()));
+    }
+
+    Cursor cursor(new CursorPrivate(token, this));
+    Response response = d->wait_for_response(token, FOREVER);
+    cursor.d->add_response(std::move(response));
+    return cursor;
+}
+
+void Connection::stop_query(uint64_t token) {
+    const auto& it = d->guarded_cache.find(token);
+    if (it != d->guarded_cache.end() && !it->second.closed) {
+        d->run_query(Query{QueryType::STOP, token}, true);
+    }
+}
+
+void Connection::continue_query(uint64_t token) {
+    d->run_query(Query{QueryType::CONTINUE, token}, true);
 }
 
 Error Response::as_error() {
@@ -461,13 +424,6 @@ Protocol::Response::ErrorType runtime_error_type(double t) {
     default:
         throw Error("Unknown error type");
     }
-}
-
-Token::Token(Connection::WriteLock& writer) : conn(writer.conn), token(writer.new_token()) { }
-
-void Connection::close_token(uint64_t token) {
-    WriteLock writer(*this);
-    writer.close_token(token);
 }
 
 }

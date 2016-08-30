@@ -1,7 +1,7 @@
 #pragma once
 
 #include "datum.h"
-#include "net.h"
+#include "connection.h"
 #include "protocol_defs.h"
 #include "cursor.h"
 
@@ -352,6 +352,8 @@ public:
 
 private:
     friend class Var;
+    friend class Connection;
+    friend struct Query;
 
     template <int _>
     Var mkvar(std::vector<int>& vars);
