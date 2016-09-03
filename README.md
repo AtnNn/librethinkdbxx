@@ -19,7 +19,7 @@ int main() {
   std::unique_ptr<R::Connection> conn = R::connect("localhost", 28015);
   R::Cursor cursor = R::table("users").filter(R::row["age"] > 14).run(*conn);
   for (R::Datum& user : cursor) {
-      printf("%s\n", R::write_datum(user).c_str());
+      printf("%s\n", user.as_json().c_str());
   }
 }
 ```
