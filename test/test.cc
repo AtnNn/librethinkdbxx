@@ -72,6 +72,19 @@ void test_binary() {
     exit_section();
 }
 
+void test_issue28() {
+    enter_section("issue #28");
+    std::vector<std::string> expected{ "rethinkdb", "test" };
+    std::vector<std::string> dbs;
+    R::Cursor databases = R::db_list().run(*conn);
+    for (R::Datum const& db : databases) {
+        dbs.push_back(*db.get_string());
+    }
+
+    TEST_EQ(dbs, expected);
+    exit_section();
+}
+
 int main() {
     signal(SIGPIPE, SIG_IGN);
     srand(time(NULL));
@@ -86,6 +99,7 @@ int main() {
         //test_json_parse_print();
         //test_reql();
         //test_cursor();
+        test_issue28();
         run_upstream_tests();
     } catch (const R::Error& error) {
         printf("FAILURE: uncaught expception: %s\n", error.message.c_str());

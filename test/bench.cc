@@ -1,3 +1,4 @@
+/*
 #include <signal.h>
 #include <ctime>
 #include <chrono>
@@ -31,3 +32,27 @@ int main() {
         return 1;
     }
 }
+*/
+
+#include <iostream>
+#include <rethinkdb.h>
+
+namespace R = RethinkDB;
+
+int main() {
+    auto conn = R::connect();
+    if (!conn) {
+        std::cerr << "Could not connect to server\n";
+        return 1;
+    }
+
+    std::cout << "Connected" << std::endl;
+    R::Cursor databases = R::db_list().run(*conn);
+    for (R::Datum const& db : databases) {
+        std::cout << *db.get_string() << '\n';
+    }
+
+    return 0;
+}
+
+

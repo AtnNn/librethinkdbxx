@@ -30,6 +30,7 @@ Datum& Cursor::next(double wait) const {
     if (!has_next(wait)) {
         throw Error("next: No more data");
     }
+
     return d->buffer[d->index++];
 }
 
@@ -37,6 +38,7 @@ Datum& Cursor::peek(double wait) const {
     if (!has_next(wait)) {
         throw Error("next: No more data");
     }
+
     return d->buffer[d->index];
 }
 
@@ -50,14 +52,16 @@ void CursorPrivate::convert_single() const {
     if (index != 0) {
         throw Error("Cursor: already consumed");
     }
+
     if (buffer.size() != 1) {
         throw Error("Cursor: invalid response from server");
     }
-    Array* array = buffer[0].get_array();
-    if (!array) {
+
+    if (!buffer[0].is_array()) {
         throw Error("Cursor: not an array");
     }
-    buffer = std::move(*array);
+
+    buffer.swap(buffer[0].extract_array());
     single = false;
 }
 
@@ -183,23 +187,25 @@ Cursor::iterator Cursor::begin() {
 }
 
 Cursor::iterator Cursor::end() {
-    return iterator(NULL);
+    return iterator(nullptr);
 }
 
-Cursor::iterator::iterator(Cursor* cursor_) : cursor(cursor_) { }
+Cursor::iterator::iterator(Cursor* cursor_) : cursor(cursor_) {}
 
 Cursor::iterator& Cursor::iterator::operator++ () {
-    if (cursor == NULL) {
+    if (cursor == nullptr) {
         throw Error("incrementing an exhausted Cursor iterator");
     }
+
     cursor->next();
     return *this;
 }
 
 Datum& Cursor::iterator::operator* () {
-    if (cursor == NULL) {
+    if (cursor == nullptr) {
         throw Error("reading from empty Cursor iterator");
     }
+
     return cursor->peek();
 }
 
@@ -207,8 +213,9 @@ bool Cursor::iterator::operator!= (const Cursor::iterator& other) const {
     if (cursor == other.cursor) {
         return false;
     }
-    return !((cursor == NULL && !other.cursor->has_next()) ||
-             (other.cursor == NULL && !cursor->has_next()));
+
+    return !((cursor == nullptr && !other.cursor->has_next()) ||
+             (other.cursor == nullptr && !cursor->has_next()));
 }
 
 }

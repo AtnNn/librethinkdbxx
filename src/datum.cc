@@ -18,6 +18,34 @@ bool Datum::is_nil() const {
     return type == Type::NIL;
 }
 
+bool Datum::is_boolean() const {
+    return type == Type::BOOLEAN;
+}
+
+bool Datum::is_number() const {
+    return type == Type::NUMBER;
+}
+
+bool Datum::is_string() const {
+    return type == Type::STRING;
+}
+
+bool Datum::is_object() const {
+    return type == Type::OBJECT;
+}
+
+bool Datum::is_array() const {
+    return type == Type::ARRAY;
+}
+
+bool Datum::is_binary() const {
+    return type == Type::BINARY;
+}
+
+bool Datum::is_time() const {
+    return type == Type::TIME;
+}
+
 bool* Datum::get_boolean() {
     if (type == Type::BOOLEAN) {
         return &value.boolean;

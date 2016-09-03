@@ -139,6 +139,13 @@ public:
     }
 
     bool is_nil() const;
+    bool is_boolean() const;
+    bool is_number() const;
+    bool is_string() const;
+    bool is_object() const;
+    bool is_array() const;
+    bool is_binary() const;
+    bool is_time() const;
 
     // get_* returns nullptr if the datum has a different type
 
