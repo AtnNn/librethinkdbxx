@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iterator>
 #include "connection.h"
 
 namespace RethinkDB {
@@ -24,8 +25,16 @@ public:
     Cursor& operator=(const Cursor&) = delete;
 
     // Returned by begin() and end()
-    class iterator {
+    class iterator : public std::iterator<std::forward_iterator_tag, typename RethinkDB::Cursor> {
     public:
+        // Iterator traits - typedefs and types required to be STL compliant
+        typedef std::ptrdiff_t              difference_type;
+        typedef typename RethinkDB::Cursor  value_type;
+        typedef typename RethinkDB::Cursor* pointer;
+        typedef typename RethinkDB::Cursor& reference;
+        typedef size_t                      size_type;
+        std::forward_iterator_tag           iterator_category;
+
         iterator(Cursor*);
         iterator& operator++ ();
         Datum& operator* ();
