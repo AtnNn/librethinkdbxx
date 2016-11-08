@@ -25,15 +25,14 @@ public:
     Cursor& operator=(const Cursor&) = delete;
 
     // Returned by begin() and end()
-    class iterator : public std::iterator<std::forward_iterator_tag, typename RethinkDB::Cursor> {
+    class iterator : public std::iterator<std::input_iterator_tag, typename RethinkDB::Datum> {
     public:
         // Iterator traits - typedefs and types required to be STL compliant
-        typedef std::ptrdiff_t              difference_type;
-        typedef typename RethinkDB::Cursor  value_type;
-        typedef typename RethinkDB::Cursor* pointer;
-        typedef typename RethinkDB::Cursor& reference;
-        typedef size_t                      size_type;
-        std::forward_iterator_tag           iterator_category;
+        typedef typename RethinkDB::Datum  value_type;
+        typedef typename RethinkDB::Datum* pointer;
+        typedef typename RethinkDB::Datum& reference;
+        typedef size_t                     size_type;
+        std::input_iterator_tag            iterator_category;
 
         iterator(Cursor*);
         iterator& operator++ ();
