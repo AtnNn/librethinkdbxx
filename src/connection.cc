@@ -241,8 +241,11 @@ Response ReadLock::read_loop(uint64_t token_want, CacheLock&& guard, double wait
             uint32_t length;
             memcpy(&length, buf + 8, 4);
 
-            char buffer[length + 1];
-            bzero(buffer, sizeof(buffer));
+            //char buffer[length + 1];
+            //bzero(buffer, sizeof(buffer));
+            std::unique_ptr<char[]> bufmem(new char[length + 1]);
+            char *buffer = bufmem.get();
+            bzero(buffer, length + 1);
             recv(buffer, length, wait);
             buffer[length] = '\0';
 
