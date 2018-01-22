@@ -1,6 +1,7 @@
 #ifndef CONNECTION_P_H
 #define CONNECTION_P_H
 
+#define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
 #include "connection.h"
